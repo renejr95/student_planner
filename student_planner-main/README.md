@@ -23,12 +23,10 @@ Designed for students to manage tasks, events, reminders, and personal preferenc
 ### **Events & Reminders**
 - Add events with dates  
 - Add reminders  
-- Stored per‑user  
+  
 
 ### **User Preferences**
 - Theme (light/dark)  
 - Layout options  
 - Density settings  
 
-### **Modular Architecture**
-Organized into clear, maintainable components:
