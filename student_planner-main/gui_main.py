@@ -1,0 +1,944 @@
+import re
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
+from datetime import datetime
+
+from managers.storage_manager import StorageManager
+from models.user import User, hash_password
+from models.task import Task
+
+
+class StudentPlannerGUI:
+    """GUI version of the Student Planner application."""
+
+    COLOR_OPTIONS = ["red", "blue", "green", "yellow", "orange", "purple", "pink", "gray"]
+    PRIORITY_OPTIONS = ["High", "Medium", "Low"]
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Student Planner GUI")
+        self.root.geometry("1100x720")
+        self.root.minsize(980, 650)
+
+        # Load saved application data.
+        self.storage = StorageManager()
+        self.storage.load_data()
+
+        self.current_user = None
+
+        # Shared styles make the interface look cleaner and keep code readable.
+        self.bg_color = "#f4f7fb"
+        self.card_color = "#ffffff"
+        self.accent_color = "#2f6fed"
+        self.text_color = "#1f2937"
+
+        self.root.configure(bg=self.bg_color)
+        self.main_frame = tk.Frame(self.root, bg=self.bg_color, padx=20, pady=20)
+        self.main_frame.pack(fill="both", expand=True)
+
+        self.setup_styles()
+        self.show_login_screen()
+
+    def setup_styles(self):
+        """Configure ttk widget styles in one place."""
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        style.configure("Planner.TNotebook", background=self.bg_color, borderwidth=0)
+        style.configure("Planner.TNotebook.Tab", padding=(16, 8), font=("Arial", 10, "bold"))
+        style.configure("Planner.Treeview", rowheight=28, font=("Arial", 10))
+        style.configure("Planner.Treeview.Heading", font=("Arial", 10, "bold"))
+        style.configure("Planner.TCombobox", padding=4)
+
+    def clear_main_frame(self):
+        """Remove the current screen before drawing the next one."""
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+
+    def make_card(self, parent, title=None):
+        """Create a framed content area used across the GUI."""
+        card = tk.Frame(parent, bg=self.card_color, bd=1, relief="solid", padx=18, pady=18)
+        if title:
+            tk.Label(
+                card,
+                text=title,
+                font=("Arial", 14, "bold"),
+                bg=self.card_color,
+                fg=self.text_color,
+            ).pack(anchor="w", pady=(0, 12))
+        return card
+
+    # ------------------------------------------------------------------
+    # Authentication screens
+    # ------------------------------------------------------------------
+
+    def show_login_screen(self):
+        """Display the login screen."""
+        self.clear_main_frame()
+
+        wrapper = tk.Frame(self.main_frame, bg=self.bg_color)
+        wrapper.pack(expand=True)
+
+        card = self.make_card(wrapper)
+        card.pack(padx=10, pady=10)
+
+        tk.Label(
+            card,
+            text="Student Planner",
+            font=("Arial", 24, "bold"),
+            bg=self.card_color,
+            fg=self.text_color,
+        ).pack(pady=(0, 8))
+
+        tk.Label(
+            card,
+            text="Log in to manage tasks, events, reminders, and preferences.",
+            font=("Arial", 11),
+            bg=self.card_color,
+            fg="#4b5563",
+        ).pack(pady=(0, 18))
+
+        form = tk.Frame(card, bg=self.card_color)
+        form.pack(fill="x")
+
+        tk.Label(form, text="Student Id", font=("Arial", 11, "bold"), bg=self.card_color).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        self.login_username_entry = tk.Entry(form, width=35, font=("Arial", 11))
+        self.login_username_entry.grid(row=1, column=0, pady=(0, 12), ipady=5)
+
+        tk.Label(form, text="Password", font=("Arial", 11, "bold"), bg=self.card_color).grid(row=2, column=0, sticky="w", pady=(0, 5))
+        self.login_password_entry = tk.Entry(form, width=35, show="*", font=("Arial", 11))
+        self.login_password_entry.grid(row=3, column=0, pady=(0, 18), ipady=5)
+
+        btn_row = tk.Frame(card, bg=self.card_color)
+        btn_row.pack(fill="x")
+
+        tk.Button(
+            btn_row,
+            text="Log In",
+            font=("Arial", 11, "bold"),
+            bg=self.accent_color,
+            fg="white",
+            width=16,
+            command=self.handle_login,
+        ).pack(side="left", padx=(0, 8))
+
+        tk.Button(
+            btn_row,
+            text="Create Account",
+            font=("Arial", 11),
+            width=16,
+            command=self.show_create_account_screen,
+        ).pack(side="left")
+
+        tk.Button(
+            card,
+            text="Forgot Password?",
+            font=("Arial", 10, "underline"),
+            fg="blue",
+            bg=self.bg_color,
+            command=self.show_forgot_password_screen
+        ).pack(pady=(4, 0))
+
+    def show_create_account_screen(self):
+        """Display the account creation screen."""
+        self.clear_main_frame()
+
+        wrapper = tk.Frame(self.main_frame, bg=self.bg_color)
+        wrapper.pack(expand=True)
+
+        card = self.make_card(wrapper)
+        card.pack(padx=10, pady=10)
+
+        tk.Label(
+            card,
+            text="Create Account",
+            font=("Arial", 22, "bold"),
+            bg=self.card_color,
+            fg=self.text_color,
+        ).pack(pady=(0, 8))
+
+        requirements = (
+            "Username format: FirstName LastName StudentID\n"
+            "Example: John Doe 123456\n"
+            "Password must be at least 8 characters and include letters and numbers."
+        )
+        tk.Label(card, text=requirements, justify="left", font=("Arial", 10), bg=self.card_color, fg="#4b5563").pack(anchor="w", pady=(0, 15))
+
+        form = tk.Frame(card, bg=self.card_color)
+        form.pack(fill="x")
+
+        tk.Label(form, text="Full Name + Student ID", font=("Arial", 11, "bold"), bg=self.card_color).grid(row=0, column=0, sticky="w", pady=(0, 5))
+        self.create_username_entry = tk.Entry(form, width=40, font=("Arial", 11))
+        self.create_username_entry.grid(row=1, column=0, pady=(0, 12), ipady=5)
+
+        tk.Label(form, text="Password", font=("Arial", 11, "bold"), bg=self.card_color).grid(row=2, column=0, sticky="w", pady=(0, 5))
+        self.create_password_entry = tk.Entry(form, width=40, show="*", font=("Arial", 11))
+        self.create_password_entry.grid(row=3, column=0, pady=(0, 12), ipady=5)
+
+        tk.Label(form, text="Confirm Password", font=("Arial", 11, "bold"), bg=self.card_color).grid(row=4, column=0, sticky="w", pady=(0, 5))
+        self.confirm_password_entry = tk.Entry(form, width=40, show="*", font=("Arial", 11))
+        self.confirm_password_entry.grid(row=5, column=0, pady=(0, 18), ipady=5)
+
+        btn_row = tk.Frame(card, bg=self.card_color)
+        btn_row.pack(fill="x")
+
+        tk.Button(
+            btn_row,
+            text="Create",
+            font=("Arial", 11, "bold"),
+            bg=self.accent_color,
+            fg="white",
+            width=16,
+            command=self.handle_create_account,
+        ).pack(side="left", padx=(0, 8))
+
+        tk.Button(btn_row, text="Back", font=("Arial", 11), width=16, command=self.show_login_screen).pack(side="left")
+
+    def handle_login(self):
+        student_id = self.login_username_entry.get().strip()
+        password = self.login_password_entry.get().strip()
+
+        if student_id not in self.storage.users:
+            messagebox.showerror("Login Failed", "No account found with that Student ID.")
+            return
+
+        if self.storage.login_attempts.get(student_id, 0) >= 5:
+            messagebox.showerror("Login Failed", "This account is locked after too many failed attempts.")
+            return
+
+        user = self.storage.users[student_id]
+
+        if not user.check_password(password):
+            self.storage.login_attempts[student_id] = self.storage.login_attempts.get(student_id, 0) + 1
+            self.storage.save_data()
+            remaining = 5 - self.storage.login_attempts[student_id]
+            if remaining > 0:
+                messagebox.showerror("Login Failed", f"Incorrect password. {remaining} attempt(s) remaining.")
+            else:
+                messagebox.showerror("Login Failed", "Too many failed attempts. This account is now locked.")
+                return
+
+        self.storage.login_attempts[student_id] = 0
+        self.storage.current_user = user
+        self.current_user = user
+        self.storage.save_data()
+        self.show_dashboard()
+
+    def handle_create_account(self):
+        full = self.create_username_entry.get().strip()
+        password = self.create_password_entry.get().strip()
+        confirm = self.confirm_password_entry.get().strip()
+
+        # Expect: FirstName LastName StudentID
+        parts = full.split()
+        if len(parts) != 3:
+            messagebox.showerror("Invalid Format",
+                             "Use: FirstName LastName StudentID\nExample: John Doe 123456")
+            return
+
+        first, last, student_id = parts
+        # Student ID must be exactly 7 digits
+        if not re.fullmatch(r"\d{7}", student_id):
+            messagebox.showerror(
+            "Invalid Student ID",
+            "Student ID must be exactly 7 digits (e.g., 0333392)."
+        )
+            return
+
+        if not first[0].isupper() or not last[0].isupper():
+            messagebox.showerror("Invalid Name", "Names must start with a capital letter.")
+            return
+
+        if not re.fullmatch(r"\d{7}", student_id):
+            messagebox.showerror(
+            "Invalid Student ID",
+            "Student ID must be exactly 7 digits (e.g., 1234567)."
+            )
+            return
+
+
+        if student_id in self.storage.users:
+            messagebox.showerror("Duplicate Account", "This student ID already exists.")
+            return
+
+        if password != confirm:
+            messagebox.showerror("Password Error", "Passwords do not match.")
+            return
+
+        if len(password) < 8 or not re.search(r"[A-Za-z]", password) or not re.search(r"[0-9]", password):
+            messagebox.showerror("Password Error",
+                             "Password must be at least 8 characters and contain letters and numbers.")
+            return
+
+        # Ask security questions
+        q1 = simpledialog.askstring("Security Question 1", "What is your favorite color?")
+        q2 = simpledialog.askstring("Security Question 2", "What city were you born in?")
+        q3 = simpledialog.askstring("Security Question 3", "What is your pet's name?")
+
+        if not q1 or not q2 or not q3:
+            messagebox.showerror("Error", "All security questions must be answered.")
+            return
+
+        user = User(
+            first_name=first,
+            last_name=last,
+            student_id=student_id,
+            password_hash=hash_password(password),
+            security_answers=[q1.lower(), q2.lower(), q3.lower()]
+        )
+
+        self.storage.users[student_id] = user
+        self.storage.login_attempts[student_id] = 0
+        self.storage.current_user = user
+        self.current_user = user
+        self.storage.save_data()
+
+        messagebox.showinfo("Success", "Account created successfully.")
+        self.show_dashboard()
+
+    def show_forgot_password_screen(self):
+        self.clear_main_frame()
+
+        wrapper = tk.Frame(self.main_frame, bg=self.bg_color)
+        wrapper.pack(expand=True)
+
+        card = self.make_card(wrapper)
+        card.pack(padx=10, pady=10)
+
+        tk.Label(card, text="Reset Password", font=("Arial", 20, "bold"),
+             bg=self.card_color, fg=self.text_color).pack(pady=(0, 10))
+
+        tk.Label(card, text="Enter Student ID:", bg=self.card_color).pack()
+        id_entry = tk.Entry(card, width=30)
+        id_entry.pack(pady=5)
+
+        def next_step():
+            sid = id_entry.get().strip()
+            if sid not in self.storage.users:
+                messagebox.showerror("Error", "No account found with that Student ID.")
+                return
+
+            user = self.storage.users[sid]
+
+            answers = []
+            questions = [
+            "What is your favorite color?",
+            "What city were you born in?",
+            "What is your pet's name?"
+            ]
+
+            for i, q in enumerate(questions):
+                ans = simpledialog.askstring("Security Question", q)
+                if not ans or ans.lower() != user.security_answers[i]:
+                    messagebox.showerror("Error", "Security answers do not match.")
+                    return
+
+            # Reset password
+            new_pw = simpledialog.askstring("New Password", "Enter new password:", show="*")
+            confirm_pw = simpledialog.askstring("Confirm Password", "Confirm new password:", show="*")
+
+            if new_pw != confirm_pw:
+                messagebox.showerror("Error", "Passwords do not match.")
+                return
+
+            user.password_hash = hash_password(new_pw)
+            self.storage.save_data()
+            messagebox.showinfo("Success", "Password reset successfully.")
+            self.show_login_screen()
+
+        tk.Button(card, text="Next", command=next_step).pack(pady=10)
+        tk.Button(card, text="Back", command=self.show_login_screen).pack()
+
+    # ------------------------------------------------------------------
+    # Dashboard
+    # ------------------------------------------------------------------
+
+    def show_dashboard(self):
+        """Display the main application dashboard after login."""
+        self.clear_main_frame()
+
+        header = tk.Frame(self.main_frame, bg=self.bg_color)
+        header.pack(fill="x", pady=(0, 16))
+
+        tk.Label(
+            header,
+            text=f"Welcome, {self.current_user.username}",
+            font=("Arial", 20, "bold"),
+            bg=self.bg_color,
+            fg=self.text_color,
+        ).pack(side="left")
+
+        tk.Button(header, text="Logout", font=("Arial", 11), command=self.logout).pack(side="right")
+
+        self.notebook = ttk.Notebook(self.main_frame, style="Planner.TNotebook")
+        self.notebook.pack(fill="both", expand=True)
+
+        self.tasks_tab = tk.Frame(self.notebook, bg=self.bg_color)
+        self.events_tab = tk.Frame(self.notebook, bg=self.bg_color)
+        self.reminders_tab = tk.Frame(self.notebook, bg=self.bg_color)
+        self.preferences_tab = tk.Frame(self.notebook, bg=self.bg_color)
+
+        self.notebook.add(self.tasks_tab, text="Tasks")
+        self.notebook.add(self.events_tab, text="Events")
+        self.notebook.add(self.reminders_tab, text="Reminders")
+        self.notebook.add(self.preferences_tab, text="Preferences")
+
+        self.build_tasks_tab()
+        self.build_events_tab()
+        self.build_reminders_tab()
+        self.build_preferences_tab()
+
+    def logout(self):
+        """Log out the current user and return to the login screen."""
+        self.storage.current_user = None
+        self.current_user = None
+        self.storage.save_data()
+        self.show_login_screen()
+
+    # ------------------------------------------------------------------
+    # Tasks tab
+    # ------------------------------------------------------------------
+
+    def build_tasks_tab(self):
+        """Build the tasks tab layout and controls."""
+        top = tk.Frame(self.tasks_tab, bg=self.bg_color)
+        top.pack(fill="x")
+
+        form_card = self.make_card(top, "Add or Edit Task")
+        form_card.pack(fill="x", pady=(0, 12))
+
+        form = tk.Frame(form_card, bg=self.card_color)
+        form.pack(fill="x")
+
+        tk.Label(form, text="Title", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", padx=6, pady=6)
+        self.task_title_entry = tk.Entry(form, width=28, font=("Arial", 10))
+        self.task_title_entry.grid(row=1, column=0, padx=6, pady=6, ipady=4)
+
+        tk.Label(form, text="Due Date (MM-DD-YY)", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=1, sticky="w", padx=6, pady=6)
+        self.task_due_entry = tk.Entry(form, width=18, font=("Arial", 10))
+        self.task_due_entry.grid(row=1, column=1, padx=6, pady=6, ipady=4)
+
+        tk.Label(form, text="Priority", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=2, sticky="w", padx=6, pady=6)
+        self.task_priority_var = tk.StringVar(value="Medium")
+        self.task_priority_combo = ttk.Combobox(
+            form,
+            textvariable=self.task_priority_var,
+            values=self.PRIORITY_OPTIONS,
+            state="readonly",
+            width=14,
+            style="Planner.TCombobox",
+        )
+        self.task_priority_combo.grid(row=1, column=2, padx=6, pady=6)
+
+        tk.Label(form, text="Color", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=3, sticky="w", padx=6, pady=6)
+        self.task_color_var = tk.StringVar(value="blue")
+        self.task_color_combo = ttk.Combobox(
+            form,
+            textvariable=self.task_color_var,
+            values=self.COLOR_OPTIONS,
+            state="readonly",
+            width=14,
+            style="Planner.TCombobox",
+        )
+        self.task_color_combo.grid(row=1, column=3, padx=6, pady=6)
+
+        self.selected_task_index = None
+
+        btn_row = tk.Frame(form_card, bg=self.card_color)
+        btn_row.pack(fill="x", pady=(12, 0))
+
+        tk.Button(btn_row, text="Add Task", bg=self.accent_color, fg="white", width=14, command=self.add_task).pack(side="left", padx=(0, 8))
+        tk.Button(btn_row, text="Update Selected", width=14, command=self.update_task).pack(side="left", padx=(0, 8))
+        tk.Button(btn_row, text="Clear Form", width=12, command=self.clear_task_form).pack(side="left")
+
+        action_card = self.make_card(self.tasks_tab, "Task List")
+        action_card.pack(fill="both", expand=True)
+
+        controls = tk.Frame(action_card, bg=self.card_color)
+        controls.pack(fill="x", pady=(0, 10))
+
+        tk.Button(controls, text="Mark Selected Done", width=16, command=self.mark_selected_task_done).pack(side="left", padx=(0, 8))
+        tk.Button(controls, text="Delete Selected", width=14, command=self.delete_selected_task).pack(side="left", padx=(0, 8))
+        tk.Button(controls, text="Delete Completed", width=14, command=self.delete_completed_tasks).pack(side="left", padx=(0, 20))
+
+        tk.Label(controls, text="Sort by:", bg=self.card_color, font=("Arial", 10, "bold")).pack(side="left", padx=(0, 8))
+        tk.Button(controls, text="Due Date", width=10, command=lambda: self.sort_tasks("due")).pack(side="left", padx=(0, 6))
+        tk.Button(controls, text="Priority", width=10, command=lambda: self.sort_tasks("priority")).pack(side="left", padx=(0, 6))
+        tk.Button(controls, text="Color", width=10, command=lambda: self.sort_tasks("color")).pack(side="left")
+
+        search_row = tk.Frame(action_card, bg=self.card_color)
+        search_row.pack(fill="x", pady=(0, 10))
+        tk.Label(search_row, text="Search title:", bg=self.card_color, font=("Arial", 10, "bold")).pack(side="left", padx=(0, 8))
+        self.task_search_entry = tk.Entry(search_row, width=28)
+        self.task_search_entry.pack(side="left", padx=(0, 8), ipady=3)
+        tk.Button(search_row, text="Search", width=10, command=self.search_tasks).pack(side="left", padx=(0, 6))
+        tk.Button(search_row, text="Show All", width=10, command=self.refresh_tasks_tree).pack(side="left")
+
+        table_frame = tk.Frame(action_card, bg=self.card_color)
+        table_frame.pack(fill="both", expand=True)
+
+        columns = ("Title", "Due Date", "Priority", "Color", "Status")
+        self.tasks_tree = ttk.Treeview(table_frame, columns=columns, show="headings", style="Planner.Treeview")
+        for col, width in [("Title", 280), ("Due Date", 120), ("Priority", 100), ("Color", 100), ("Status", 100)]:
+            self.tasks_tree.heading(col, text=col)
+            self.tasks_tree.column(col, width=width, anchor="center")
+        self.tasks_tree.column("Title", anchor="w")
+
+        scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.tasks_tree.yview)
+        self.tasks_tree.configure(yscrollcommand=scroll.set)
+        self.tasks_tree.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
+
+        self.tasks_tree.bind("<<TreeviewSelect>>", self.load_selected_task_into_form)
+        self.refresh_tasks_tree()
+
+    def validate_due_date(self, due_date):
+        """Return True when the due date matches the project format."""
+        try:
+            datetime.strptime(due_date, "%m-%d-%y")
+            return True
+        except ValueError:
+            return False
+
+    def add_task(self):
+        """Create a new task for the logged-in user."""
+        title = self.task_title_entry.get().strip()
+        due_date = self.task_due_entry.get().strip()
+        priority = self.task_priority_var.get().strip()
+        color = self.task_color_var.get().strip()
+
+        if not title:
+            messagebox.showerror("Task Error", "Task title cannot be empty.")
+            return
+
+        if not self.validate_due_date(due_date):
+            messagebox.showerror("Task Error", "Due date must use MM-DD-YY format.")
+            return
+
+        task = Task(title, due_date, color, priority)
+        self.current_user.tasks.append(task)
+        self.storage.save_data()
+        self.clear_task_form()
+        self.refresh_tasks_tree()
+        messagebox.showinfo("Success", "Task added successfully.")
+
+    def clear_task_form(self):
+        """Reset task inputs and clear the current selection."""
+        self.selected_task_index = None
+        self.task_title_entry.delete(0, tk.END)
+        self.task_due_entry.delete(0, tk.END)
+        self.task_priority_var.set("Medium")
+        self.task_color_var.set("blue")
+        self.tasks_tree.selection_remove(*self.tasks_tree.selection())
+
+    def get_selected_task_index(self):
+        """Read the selected task index from the task table."""
+        selected = self.tasks_tree.selection()
+        if not selected:
+            return None
+        return int(selected[0])
+
+    def load_selected_task_into_form(self, event=None):
+        """Load the chosen task into the edit form."""
+        index = self.get_selected_task_index()
+        if index is None or index >= len(self.current_user.tasks):
+            return
+
+        task = self.current_user.tasks[index]
+        self.selected_task_index = index
+        self.task_title_entry.delete(0, tk.END)
+        self.task_title_entry.insert(0, task.title)
+        self.task_due_entry.delete(0, tk.END)
+        self.task_due_entry.insert(0, task.due_date)
+        self.task_priority_var.set(task.priority if task.priority in self.PRIORITY_OPTIONS else "Medium")
+        self.task_color_var.set(task.color if task.color in self.COLOR_OPTIONS else "blue")
+
+    def update_task(self):
+        """Apply edits to the currently selected task."""
+        index = self.get_selected_task_index()
+        if index is None:
+            messagebox.showerror("Edit Error", "Please select a task to update.")
+            return
+
+        task = self.current_user.tasks[index]
+        if task.is_done:
+            messagebox.showerror("Edit Error", "Completed tasks cannot be edited.")
+            return
+
+        title = self.task_title_entry.get().strip()
+        due_date = self.task_due_entry.get().strip()
+        priority = self.task_priority_var.get().strip()
+        color = self.task_color_var.get().strip()
+
+        if not title:
+            messagebox.showerror("Edit Error", "Task title cannot be empty.")
+            return
+
+        if not self.validate_due_date(due_date):
+            messagebox.showerror("Edit Error", "Due date must use MM-DD-YY format.")
+            return
+
+        task.title = title
+        task.due_date = due_date
+        task.priority = priority
+        task.color = color
+        self.storage.save_data()
+        self.refresh_tasks_tree()
+        messagebox.showinfo("Success", "Task updated successfully.")
+
+    def mark_selected_task_done(self):
+        """Mark the selected task as completed."""
+        index = self.get_selected_task_index()
+        if index is None:
+            messagebox.showerror("Task Error", "Please select a task first.")
+            return
+
+        task = self.current_user.tasks[index]
+        if task.is_done:
+            messagebox.showinfo("Task Status", "This task is already completed.")
+            return
+
+        task.mark_done()
+        self.storage.save_data()
+        self.refresh_tasks_tree()
+        messagebox.showinfo("Success", "Task marked as done.")
+
+    def delete_selected_task(self):
+        """Delete one selected task after confirmation."""
+        index = self.get_selected_task_index()
+        if index is None:
+            messagebox.showerror("Delete Error", "Please select a task to delete.")
+            return
+
+        task = self.current_user.tasks[index]
+        confirm = messagebox.askyesno("Delete Task", f"Delete '{task.title}'?")
+        if not confirm:
+            return
+
+        self.current_user.tasks.pop(index)
+        self.storage.save_data()
+        self.clear_task_form()
+        self.refresh_tasks_tree()
+
+    def delete_completed_tasks(self):
+        """Remove all completed tasks from the account."""
+        completed_count = len([task for task in self.current_user.tasks if task.is_done])
+        if completed_count == 0:
+            messagebox.showinfo("Delete Completed", "There are no completed tasks to delete.")
+            return
+
+        confirm = messagebox.askyesno("Delete Completed", f"Delete all {completed_count} completed tasks?")
+        if not confirm:
+            return
+
+        self.current_user.tasks = [task for task in self.current_user.tasks if not task.is_done]
+        self.storage.save_data()
+        self.clear_task_form()
+        self.refresh_tasks_tree()
+
+    def sort_tasks(self, mode):
+        """Sort tasks by due date, priority, or color."""
+        if mode == "due":
+            self.current_user.tasks.sort(key=lambda task: datetime.strptime(task.due_date, "%m-%d-%y"))
+        elif mode == "priority":
+            priority_order = {"High": 1, "Medium": 2, "Low": 3, None: 4}
+            self.current_user.tasks.sort(key=lambda task: priority_order.get(task.priority, 4))
+        elif mode == "color":
+            self.current_user.tasks.sort(key=lambda task: (task.color or "").lower())
+
+        self.storage.save_data()
+        self.refresh_tasks_tree()
+
+    def search_tasks(self):
+        """Show only tasks whose titles match the search keyword."""
+        keyword = self.task_search_entry.get().strip().lower()
+        if not keyword:
+            self.refresh_tasks_tree()
+            return
+
+        filtered = [
+            (index, task)
+            for index, task in enumerate(self.current_user.tasks)
+            if keyword in task.title.lower()
+        ]
+        self.refresh_tasks_tree(filtered)
+
+    def refresh_tasks_tree(self, task_rows=None):
+        """Reload the task table, preserving readable row coloring."""
+        for item in self.tasks_tree.get_children():
+            self.tasks_tree.delete(item)
+
+        # Pastel shades keep the text readable while still matching task colors.
+        color_map = {
+            "red": "#ffd6d6",
+            "blue": "#dbeafe",
+            "green": "#d7f5dd",
+            "yellow": "#fff7c2",
+            "orange": "#ffe1bf",
+            "purple": "#eadcff",
+            "pink": "#ffd9e8",
+            "gray": "#e5e7eb",
+        }
+        for color_name, shade in color_map.items():
+            self.tasks_tree.tag_configure(color_name, background=shade)
+
+        if task_rows is None:
+            task_rows = list(enumerate(self.current_user.tasks))
+
+        for index, task in task_rows:
+            color_name = (task.color or "gray").lower()
+            if color_name not in color_map:
+                color_name = "gray"
+            status = "Done" if task.is_done else "Pending"
+            self.tasks_tree.insert(
+                "",
+                "end",
+                iid=str(index),
+                values=(task.title, task.due_date, task.priority or "", color_name.title(), status),
+                tags=(color_name,),
+            )
+
+    # ------------------------------------------------------------------
+    # Events tab
+    # ------------------------------------------------------------------
+
+    def build_events_tab(self):
+        """Build the events tab."""
+        form_card = self.make_card(self.events_tab, "Create Event")
+        form_card.pack(fill="x", pady=(0, 12))
+
+        form = tk.Frame(form_card, bg=self.card_color)
+        form.pack(fill="x")
+
+        tk.Label(form, text="Title", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", padx=6, pady=6)
+        self.event_title_entry = tk.Entry(form, width=28)
+        self.event_title_entry.grid(row=1, column=0, padx=6, pady=6, ipady=4)
+
+        tk.Label(form, text="Time", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=1, sticky="w", padx=6, pady=6)
+        self.event_time_entry = tk.Entry(form, width=18)
+        self.event_time_entry.grid(row=1, column=1, padx=6, pady=6, ipady=4)
+
+        tk.Label(form, text="Location", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=2, sticky="w", padx=6, pady=6)
+        self.event_location_entry = tk.Entry(form, width=28)
+        self.event_location_entry.grid(row=1, column=2, padx=6, pady=6, ipady=4)
+
+        tk.Button(form_card, text="Add Event", bg=self.accent_color, fg="white", width=14, command=self.add_event).pack(anchor="w", pady=(12, 0))
+
+        list_card = self.make_card(self.events_tab, "Saved Events")
+        list_card.pack(fill="both", expand=True)
+
+        self.events_listbox = tk.Listbox(list_card, font=("Arial", 11), height=12)
+        self.events_listbox.pack(fill="both", expand=True, pady=(0, 10))
+
+        tk.Button(list_card, text="Delete Selected Event", width=18, command=self.delete_selected_event).pack(anchor="w")
+        self.refresh_events_list()
+
+        tk.Button(list_card, text="Edit Selected Event", width=18, command=self.edit_selected_event).pack(anchor="w", pady=(6, 0))
+
+    def add_event(self):
+        """Add a simple event dictionary to the current account."""
+        title = self.event_title_entry.get().strip()
+        time = self.event_time_entry.get().strip()
+        location = self.event_location_entry.get().strip()
+
+        if not title:
+            messagebox.showerror("Event Error", "Event title cannot be empty.")
+            return
+
+        self.current_user.events.append({"title": title, "time": time, "location": location})
+        self.storage.save_data()
+        self.event_title_entry.delete(0, tk.END)
+        self.event_time_entry.delete(0, tk.END)
+        self.event_location_entry.delete(0, tk.END)
+        self.refresh_events_list()
+
+    def refresh_events_list(self):
+        """Reload the events listbox."""
+        self.events_listbox.delete(0, tk.END)
+        for event in self.current_user.events:
+            line = f"{event.get('title', '')} | Time: {event.get('time', '')} | Location: {event.get('location', '')}"
+            self.events_listbox.insert(tk.END, line)
+
+    def delete_selected_event(self):
+        """Ask for confirmation before deleting an event."""
+        selection = self.events_listbox.curselection()
+        if not selection:
+            messagebox.showerror("Delete Error", "Please select an event to delete.")
+            return
+
+        index = selection[0]
+        event = self.current_user.events[index]
+
+        confirm = messagebox.askyesno(
+        "Confirm Delete",
+        f"Delete event:\n\n{event.get('title', '')}\nTime: {event.get('time', '')}\nLocation: {event.get('location', '')}\n\nAre you sure?"
+        )
+
+        if confirm:
+            del self.current_user.events[index]
+            self.storage.save_data()
+            self.refresh_events_list()
+
+    def edit_selected_event(self):
+        """Open a popup to edit the selected event."""
+        selection = self.events_listbox.curselection()
+        if not selection:
+            messagebox.showerror("Edit Error", "Please select an event to edit.")
+            return
+
+        index = selection[0]
+        event = self.current_user.events[index]
+
+        popup = tk.Toplevel(self.root)
+        popup.title("Edit Event")
+        popup.geometry("360x260")
+        popup.configure(bg=self.card_color)
+
+        tk.Label(popup, text="Edit Event", font=("Arial", 12, "bold"), bg=self.card_color).pack(pady=(10, 10))
+
+        tk.Label(popup, text="Title", bg=self.card_color).pack(anchor="w", padx=12)
+        title_entry = tk.Entry(popup, width=32)
+        title_entry.insert(0, event.get("title", ""))
+        title_entry.pack(padx=12, pady=(0, 8))
+
+        tk.Label(popup, text="Time", bg=self.card_color).pack(anchor="w", padx=12)
+        time_entry = tk.Entry(popup, width=32)
+        time_entry.insert(0, event.get("time", ""))
+        time_entry.pack(padx=12, pady=(0, 8))
+
+        tk.Label(popup, text="Location", bg=self.card_color).pack(anchor="w", padx=12)
+        location_entry = tk.Entry(popup, width=32)
+        location_entry.insert(0, event.get("location", ""))
+        location_entry.pack(padx=12, pady=(0, 12))
+
+        def save_changes():
+            event["title"] = title_entry.get().strip()
+            event["time"] = time_entry.get().strip()
+            event["location"] = location_entry.get().strip()
+
+            self.storage.save_data()
+            self.refresh_events_list()
+            popup.destroy()
+
+        tk.Button(popup, text="Save Changes", bg=self.accent_color, fg="white", width=14, command=save_changes).pack(pady=10)
+
+    # ------------------------------------------------------------------
+    # Reminders tab
+    # ------------------------------------------------------------------
+
+    def build_reminders_tab(self):
+        """Build the reminders tab."""
+        form_card = self.make_card(self.reminders_tab, "Create Reminder")
+        form_card.pack(fill="x", pady=(0, 12))
+
+        form = tk.Frame(form_card, bg=self.card_color)
+        form.pack(fill="x")
+
+        tk.Label(form, text="Title", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", padx=6, pady=6)
+        self.reminder_title_entry = tk.Entry(form, width=28)
+        self.reminder_title_entry.grid(row=1, column=0, padx=6, pady=6, ipady=4)
+
+        tk.Label(form, text="Date (MM-DD-YY)", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=1, sticky="w", padx=6, pady=6)
+        self.reminder_date_entry = tk.Entry(form, width=18)
+        self.reminder_date_entry.grid(row=1, column=1, padx=6, pady=6, ipady=4)
+
+        tk.Label(form, text="Time (HH:MM)", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=2, sticky="w", padx=6, pady=6)
+        self.reminder_time_entry = tk.Entry(form, width=18)
+        self.reminder_time_entry.grid(row=1, column=2, padx=6, pady=6, ipady=4)
+
+        tk.Button(form_card, text="Add Reminder", bg=self.accent_color, fg="white", width=14, command=self.add_reminder).pack(anchor="w", pady=(12, 0))
+
+        list_card = self.make_card(self.reminders_tab, "Saved Reminders")
+        list_card.pack(fill="both", expand=True)
+
+        self.reminders_listbox = tk.Listbox(list_card, font=("Arial", 11), height=12)
+        self.reminders_listbox.pack(fill="both", expand=True, pady=(0, 10))
+        tk.Button(list_card, text="Delete Selected Reminder", width=20, command=self.delete_selected_reminder).pack(anchor="w")
+        self.refresh_reminders_list()
+
+    def add_reminder(self):
+        """Add a reminder dictionary to the current account."""
+        title = self.reminder_title_entry.get().strip()
+        date = self.reminder_date_entry.get().strip()
+        time = self.reminder_time_entry.get().strip()
+
+        if not title:
+            messagebox.showerror("Reminder Error", "Reminder title cannot be empty.")
+            return
+
+        if date and not self.validate_due_date(date):
+            messagebox.showerror("Reminder Error", "Reminder date must use MM-DD-YY format.")
+            return
+
+        reminder = {"title": title, "date": date, "time": time, "notify": True}
+        self.current_user.reminders.append(reminder)
+        self.storage.save_data()
+        self.reminder_title_entry.delete(0, tk.END)
+        self.reminder_date_entry.delete(0, tk.END)
+        self.reminder_time_entry.delete(0, tk.END)
+        self.refresh_reminders_list()
+
+    def refresh_reminders_list(self):
+        """Reload the reminders listbox."""
+        self.reminders_listbox.delete(0, tk.END)
+        for reminder in self.current_user.reminders:
+            line = f"{reminder.get('title', '')} | Date: {reminder.get('date', '')} | Time: {reminder.get('time', '')}"
+            self.reminders_listbox.insert(tk.END, line)
+
+    def delete_selected_reminder(self):
+        """Delete the selected reminder."""
+        selection = self.reminders_listbox.curselection()
+        if not selection:
+            messagebox.showerror("Delete Error", "Please select a reminder to delete.")
+            return
+        del self.current_user.reminders[selection[0]]
+        self.storage.save_data()
+        self.refresh_reminders_list()
+
+    # ------------------------------------------------------------------
+    # Preferences tab
+    # ------------------------------------------------------------------
+
+    def build_preferences_tab(self):
+        """Build the preferences tab with dropdown selections."""
+        card = self.make_card(self.preferences_tab, "Preferences")
+        card.pack(fill="x")
+
+        form = tk.Frame(card, bg=self.card_color)
+        form.pack(fill="x")
+
+        tk.Label(form, text="Theme", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", padx=6, pady=6)
+        self.theme_var = tk.StringVar(value=self.current_user.preferences.get("theme", "light"))
+        ttk.Combobox(form, textvariable=self.theme_var, values=["light", "dark"], state="readonly", width=18).grid(row=1, column=0, padx=6, pady=6)
+
+        tk.Label(form, text="Layout", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=1, sticky="w", padx=6, pady=6)
+        self.layout_var = tk.StringVar(value=self.current_user.preferences.get("layout", "list"))
+        ttk.Combobox(form, textvariable=self.layout_var, values=["list", "calendar"], state="readonly", width=18).grid(row=1, column=1, padx=6, pady=6)
+
+        tk.Label(form, text="Density", bg=self.card_color, font=("Arial", 10, "bold")).grid(row=0, column=2, sticky="w", padx=6, pady=6)
+        self.density_var = tk.StringVar(value=self.current_user.preferences.get("density", "normal"))
+        ttk.Combobox(form, textvariable=self.density_var, values=["normal", "compact"], state="readonly", width=18).grid(row=1, column=2, padx=6, pady=6)
+
+        tk.Button(card, text="Save Preferences", bg=self.accent_color, fg="white", width=16, command=self.save_preferences).pack(anchor="w", pady=(12, 0))
+
+        note = (
+            "These settings are stored in the same user_data.json file as the rest of the planner data."
+        )
+        tk.Label(card, text=note, font=("Arial", 10), bg=self.card_color, fg="#4b5563").pack(anchor="w", pady=(12, 0))
+
+    def save_preferences(self):
+        """Save user preference selections."""
+        self.current_user.preferences["theme"] = self.theme_var.get()
+        self.current_user.preferences["layout"] = self.layout_var.get()
+        self.current_user.preferences["density"] = self.density_var.get()
+        self.storage.save_data()
+        messagebox.showinfo("Success", "Preferences updated.")
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = StudentPlannerGUI(root)
+    root.mainloop()

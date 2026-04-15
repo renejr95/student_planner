@@ -7,9 +7,9 @@ from models.task import Task
 class StorageManager:
     def __init__(self):
         # Data containers
-        self.users = {}              # username → User object
+        self.users = {}              # student_id → User object
         self.current_user = None     # currently logged-in User
-        self.login_attempts = {}     # username → failed attempts
+        self.login_attempts = {}     # student_id → failed attempts
 
         # File path
         self.data_file = os.path.join(
@@ -34,7 +34,26 @@ class StorageManager:
 
         # Load users
         for u in data.get("users", []):
-            user = User(u["username"], u["password_hash"])
+            # NEW FORMAT
+            if "first_name" in u:
+                user = User(
+                    first_name=u["first_name"],
+                    last_name=u["last_name"],
+                    student_id=u["student_id"],
+                    password_hash=u["password_hash"],
+                    security_answers=u.get("security_answers", ["", "", ""])
+                )
+
+            # OLD FORMAT (username = "First Last ID")
+            else:
+                first, last, student_id = u["username"].split()
+                user = User(
+                    first_name=first,
+                    last_name=last,
+                    student_id=student_id,
+                    password_hash=u["password_hash"],
+                    security_answers=["", "", ""]
+                )
 
             # Load tasks
             for t in u.get("tasks", []):
@@ -57,12 +76,13 @@ class StorageManager:
             # Load preferences
             user.preferences = u.get("preferences", user.preferences)
 
-            self.users[user.username] = user
+            # Store user by student_id
+            self.users[user.student_id] = user
 
         # Load current user
-        username = data.get("current_user")
-        if username in self.users:
-            self.current_user = self.users[username]
+        current_id = data.get("current_user")
+        if current_id in self.users:
+            self.current_user = self.users[current_id]
 
         # Load login attempts
         self.login_attempts = data.get("login_attempts", {})
@@ -73,14 +93,17 @@ class StorageManager:
     def save_data(self):
         data = {
             "users": [],
-            "current_user": self.current_user.username if self.current_user else None,
+            "current_user": self.current_user.student_id if self.current_user else None,
             "login_attempts": self.login_attempts
         }
 
         for user in self.users.values():
             user_dict = {
-                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "student_id": user.student_id,
                 "password_hash": user.password_hash,
+                "security_answers": user.security_answers,
                 "tasks": [
                     {
                         "title": t.title,
