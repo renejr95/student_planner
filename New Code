@@ -95,7 +95,7 @@ class StudentPlannerGUI:
 
         tk.Label(
             card,
-            text="Log in to manage tasks, events, reminders, and preferences.",
+            text="Log in to Manage\nTasks, Events, & Reminders.",
             font=("Arial", 11),
             bg=self.card_color,
             fg="#4b5563",
