@@ -1,0 +1,36 @@
+class StorageManager:
+    def __init__(self, db_name="planner.db"):
+        # Establishes the connection to the SQLite file
+        self.conn = sqlite3.connect(db_name)
+        # Row_factory allows you to access columns by name: row['fullname']
+        self.conn.row_factory = sqlite3.Row 
+        self.create_tables()
+
+    def create_tables(self):
+        """Initializes the database structure."""
+        cursor = self.conn.cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS users 
+                          (student_id TEXT PRIMARY KEY, fullname TEXT, password TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS events 
+                          (event_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                           student_id TEXT, event_name TEXT, event_time TEXT,
+                           FOREIGN KEY(student_id) REFERENCES users(student_id))''')
+        self.conn.commit()
+
+    def fetch_one(self, query, params=()):
+        """Retrieves a single record (used for Login)."""
+        cursor = self.conn.cursor()
+        cursor.execute(query, params)
+        return cursor.fetchone()
+
+    def fetch_all(self, query, params=()):
+        """Retrieves multiple records (used for the Events List)."""
+        cursor = self.conn.cursor()
+        cursor.execute(query, params)
+        return cursor.fetchall()
+
+    def execute(self, query, params=()):
+        """Handles INSERT, UPDATE, and DELETE (used for Registration/Adding Events)."""
+        cursor = self.conn.cursor()
+        cursor.execute(query, params)
+        self.conn.commit()
