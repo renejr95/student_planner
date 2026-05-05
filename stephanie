@@ -18,13 +18,16 @@ class StudentPlannerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Student Planner GUI")
-        self.root.geometry("1200x850")
+        self.root.geometry("1250x900")
         self.root.minsize(980, 650)
 
         self.storage = StorageManager()
         self.storage.load_data()
 
         self.current_user = None
+        self.calendar_month = None
+        self.calendar_year = None
+        self.selected_calendar_day = None
 
         self.bg_color = "#f4f7fb"
         self.card_color = "#ffffff"
@@ -32,12 +35,12 @@ class StudentPlannerGUI:
         self.text_color = "#1f2937"
         self.pad_x = 8
         self.pad_y = 10
-        self.card_pad = 18
+        self.card_pad = 14
         self.tree_rowheight = 28
         self.tab_padding = (16, 8)
 
         self.root.configure(bg=self.bg_color)
-        self.main_frame = tk.Frame(self.root, bg=self.bg_color, padx=20, pady=20)
+        self.main_frame = tk.Frame(self.root, bg=self.bg_color, padx=20, pady=6)
         self.main_frame.pack(fill="both", expand=True)
 
         self.setup_styles()
@@ -52,12 +55,72 @@ class StudentPlannerGUI:
         except tk.TclError:
             pass
 
-        style.configure("Planner.TNotebook", background=self.bg_color, borderwidth=0)
-        style.configure("Planner.TNotebook.Tab", padding=getattr(self, "tab_padding", (16, 8)), font=("Arial", 10, "bold"))
-        style.configure("Planner.Treeview", rowheight=getattr(self, "tree_rowheight", 28), font=("Arial", 10))
-        style.configure("Planner.Treeview.Heading", font=("Arial", 10, "bold"))
-        style.configure("Planner.TCombobox", padding=4)
+        theme = "light"
+        if self.current_user is not None:
+            theme = self.current_user.preferences.get("theme", "light")
 
+        if theme == "dark":
+            field_bg = "#374151"
+            field_fg = "#f9fafb"
+            selected_bg = "#2563eb"
+            heading_bg = "#111827"
+            heading_fg = "#f9fafb"
+            tab_bg = "#1f2937"
+            tab_fg = "#f9fafb"
+        else:
+            field_bg = "#ffffff"
+            field_fg = "#1f2937"
+            selected_bg = "#dbeafe"
+            heading_bg = "#e5e7eb"
+            heading_fg = "#1f2937"
+            tab_bg = "#f4f7fb"
+            tab_fg = "#1f2937"
+
+        style.configure("Planner.TNotebook", background=self.bg_color, borderwidth=0)
+        style.configure(
+            "Planner.TNotebook.Tab",
+            padding=getattr(self, "tab_padding", (16, 8)),
+            font=("Arial", 10, "bold"),
+            background=tab_bg,
+            foreground=tab_fg
+        )
+        style.map(
+            "Planner.TNotebook.Tab",
+            background=[("selected", self.card_color)],
+            foreground=[("selected", self.text_color)]
+        )
+
+        style.configure(
+            "Planner.Treeview",
+            rowheight=getattr(self, "tree_rowheight", 28),
+            font=("Arial", 10),
+            background=field_bg,
+            foreground=field_fg,
+            fieldbackground=field_bg,
+            bordercolor=self.card_color,
+            lightcolor=self.card_color,
+            darkcolor=self.card_color
+        )
+        style.map(
+            "Planner.Treeview",
+            background=[("selected", selected_bg)],
+            foreground=[("selected", "#ffffff" if theme == "dark" else "#1f2937")]
+        )
+        style.configure(
+            "Planner.Treeview.Heading",
+            font=("Arial", 10, "bold"),
+            background=heading_bg,
+            foreground=heading_fg
+        )
+
+        style.configure(
+            "Planner.TCombobox",
+            padding=4,
+            fieldbackground=field_bg,
+            background=field_bg,
+            foreground=field_fg,
+            arrowcolor=field_fg
+        )
     def apply_theme(self):
         """Apply light or dark colors based on the logged-in user's preference."""
         if self.current_user is None:
@@ -77,7 +140,7 @@ class StudentPlannerGUI:
             self.text_color = "#1f2937"
         self.pad_x = 8
         self.pad_y = 10
-        self.card_pad = 18
+        self.card_pad = 14
         self.tree_rowheight = 28
         self.tab_padding = (16, 8)
 
@@ -101,11 +164,74 @@ class StudentPlannerGUI:
         else:
             self.pad_x = 8
             self.pad_y = 10
-            self.card_pad = 18
+            self.card_pad = 14
             self.tree_rowheight = 28
             self.tab_padding = (16, 8)
 
         self.setup_styles()
+
+
+    def get_muted_text_color(self):
+        """Return secondary text color for the active theme."""
+        if self.current_user is not None and self.current_user.preferences.get("theme", "light") == "dark":
+            return "#d1d5db"
+        return "#4b5563"
+
+    def style_entry(self, entry):
+        """Apply theme colors to standard Tk Entry widgets."""
+        if self.current_user is not None and self.current_user.preferences.get("theme", "light") == "dark":
+            entry.configure(bg="#374151", fg="#f9fafb", insertbackground="#f9fafb")
+        else:
+            entry.configure(bg="#ffffff", fg="#1f2937", insertbackground="#1f2937")
+
+    def style_all_widgets(self, parent):
+        """Recursively apply dark/light colors to Tk widgets inside a screen."""
+        theme = "light"
+        if self.current_user is not None:
+            theme = self.current_user.preferences.get("theme", "light")
+
+        muted = self.get_muted_text_color()
+        entry_bg = "#374151" if theme == "dark" else "#ffffff"
+        entry_fg = "#f9fafb" if theme == "dark" else "#1f2937"
+
+        for widget in parent.winfo_children():
+            if isinstance(widget, tk.Frame):
+                current_bg = widget.cget("bg")
+                if current_bg in ("#f4f7fb", "#111827"):
+                    widget.configure(bg=self.bg_color)
+                else:
+                    widget.configure(bg=self.card_color)
+                self.style_all_widgets(widget)
+
+            elif isinstance(widget, tk.Label):
+                current_text = widget.cget("text")
+                current_bg = widget.cget("bg")
+
+                if current_bg in ("#f4f7fb", "#111827"):
+                    widget.configure(bg=self.bg_color)
+                else:
+                    widget.configure(bg=self.card_color)
+
+                if current_text and ("Customize" in current_text or "Theme changes" in current_text or "Username format" in current_text or "Log in" in current_text):
+                    widget.configure(fg=muted)
+                else:
+                    widget.configure(fg=self.text_color)
+
+            elif isinstance(widget, tk.Entry):
+                widget.configure(bg=entry_bg, fg=entry_fg, insertbackground=entry_fg)
+
+            elif isinstance(widget, tk.Listbox):
+                widget.configure(bg=entry_bg, fg=entry_fg)
+
+            elif isinstance(widget, tk.Button):
+                # Keep accent buttons readable; normal buttons use default-ish colors.
+                try:
+                    if widget.cget("bg") in ("#2f6fed", "#2563eb"):
+                        widget.configure(bg=self.accent_color, fg="white")
+                except tk.TclError:
+                    pass
+
+            self.style_all_widgets(widget)
 
     def clear_main_frame(self):
         """Remove the current screen before drawing the next one."""
@@ -154,6 +280,7 @@ class StudentPlannerGUI:
         tk.Button(btn_row, text="Log In", font=("Arial", 11, "bold"), bg=self.accent_color, fg="white", width=16, command=self.handle_login).pack(side="left", padx=(0, 8))
         tk.Button(btn_row, text="Create Account", font=("Arial", 11), width=16, command=self.show_create_account_screen).pack(side="left")
         tk.Button(card, text="Forgot Password?", font=("Arial", 10, "underline"), fg="blue", bg=self.card_color, command=self.show_forgot_password_screen).pack(pady=(8, 0))
+        self.style_all_widgets(self.main_frame)
 
     def show_create_account_screen(self):
         self.clear_main_frame()
@@ -188,6 +315,7 @@ class StudentPlannerGUI:
 
         tk.Button(btn_row, text="Create", font=("Arial", 11, "bold"), bg=self.accent_color, fg="white", width=16, command=self.handle_create_account).pack(side="left", padx=(0, 8))
         tk.Button(btn_row, text="Back", font=("Arial", 11), width=16, command=self.show_login_screen).pack(side="left")
+        self.style_all_widgets(self.main_frame)
 
     def handle_login(self):
         student_id = self.login_username_entry.get().strip()
@@ -324,10 +452,9 @@ class StudentPlannerGUI:
     def show_dashboard(self):
         self.clear_main_frame()
         self.apply_theme()
-        self.apply_density()
 
         header = tk.Frame(self.main_frame, bg=self.bg_color)
-        header.pack(fill="x", pady=(0, 16))
+        header.pack(fill="x", pady=(0, 6))
 
         welcome_name = getattr(self.current_user, "username", None)
         if not welcome_name:
@@ -364,11 +491,8 @@ class StudentPlannerGUI:
         self.build_reminders_tab()
         self.build_preferences_tab()
 
-        layout = self.current_user.preferences.get("layout", "list")
-        if layout == "calendar":
-            self.notebook.select(self.calendar_tab)
-        else:
-            self.notebook.select(self.events_tab)
+        self.style_all_widgets(self.main_frame)
+
 
     def logout(self):
         self.storage.current_user = None
@@ -691,67 +815,119 @@ class StudentPlannerGUI:
         self.refresh_events_list()
 
     def build_calendar_tab(self):
-        self.calendar_card = self.make_card(self.calendar_tab, "Calendar")
+        self.calendar_card = tk.Frame(self.calendar_tab, bg=self.card_color, bd=1, relief="solid", padx=10, pady=8)
         self.calendar_card.pack(fill="both", expand=True)
+
+        today = datetime.today()
+        if self.calendar_month is None:
+            self.calendar_month = today.month
+        if self.calendar_year is None:
+            self.calendar_year = today.year
+
+        self.build_calendar_grid(self.calendar_card)
+
+    def shift_calendar_month(self, amount):
+        """Move the calendar view backward or forward by one month."""
+        if self.calendar_month is None or self.calendar_year is None:
+            today = datetime.today()
+            self.calendar_month = today.month
+            self.calendar_year = today.year
+
+        self.calendar_month += amount
+
+        if self.calendar_month < 1:
+            self.calendar_month = 12
+            self.calendar_year -= 1
+        elif self.calendar_month > 12:
+            self.calendar_month = 1
+            self.calendar_year += 1
+
+        self.selected_calendar_day = None
+        self.build_calendar_grid(self.calendar_card)
+
+    def select_calendar_day(self, day_num):
+        """Store the selected day and refresh the calendar/details panel."""
+        self.selected_calendar_day = day_num
         self.build_calendar_grid(self.calendar_card)
 
     def build_calendar_grid(self, parent):
-        """Show saved events in a larger month calendar with readable boxes."""
-        for widget in parent.winfo_children()[1:]:
+        """Show tasks, events, and reminders in a readable calendar grid."""
+        for widget in parent.winfo_children():
             widget.destroy()
 
         today = datetime.today()
-        target_month = today.month
-        target_year = today.year
 
-        event_dates = []
-        for event in self.current_user.events:
-            try:
-                event_dates.append(datetime.strptime(event.get("date", ""), "%m-%d-%y"))
-            except ValueError:
-                pass
+        if self.calendar_month is None:
+            self.calendar_month = today.month
+        if self.calendar_year is None:
+            self.calendar_year = today.year
 
-        if event_dates and not any(d.month == target_month and d.year == target_year for d in event_dates):
-            first_event = sorted(event_dates)[0]
-            target_month = first_event.month
-            target_year = first_event.year
+        target_month = self.calendar_month
+        target_year = self.calendar_year
 
+        normal_cell_bg = "#ffffff" if self.current_user.preferences.get("theme", "light") == "light" else "#374151"
+        muted_cell_bg = "#f3f4f6" if self.current_user.preferences.get("theme", "light") == "light" else "#1f2937"
+        selected_bg = "#dbeafe" if self.current_user.preferences.get("theme", "light") == "light" else "#1e3a8a"
+        today_bg = "#eff6ff" if self.current_user.preferences.get("theme", "light") == "light" else "#0f172a"
+
+        event_bg = "#3b82f6"
+        reminder_bg = "#f59e0b"
+        task_bg = "#10b981"
+        item_fg = "white"
+
+        # ---------- Top navigation ----------
         top_row = tk.Frame(parent, bg=self.card_color)
-        top_row.pack(fill="x", pady=(0, 10))
+        top_row.pack(fill="x", pady=(0, 6))
+
+        tk.Button(
+            top_row,
+            text="◀ Previous",
+            font=("Arial", 10, "bold"),
+            command=lambda: self.shift_calendar_month(-1)
+        ).pack(side="left")
 
         month_title = f"{calendar.month_name[target_month]} {target_year}"
         tk.Label(
             top_row,
             text=month_title,
-            font=("Arial", 16, "bold"),
+            font=("Arial", 17, "bold"),
             bg=self.card_color,
             fg=self.text_color,
+        ).pack(side="left", padx=18)
+
+        tk.Button(
+            top_row,
+            text="Next ▶",
+            font=("Arial", 10, "bold"),
+            command=lambda: self.shift_calendar_month(1)
         ).pack(side="left")
 
-        tk.Label(
-            top_row,
-            text="Events appear inside the day boxes.",
-            font=("Arial", 10),
-            bg=self.card_color,
-            fg="#6b7280" if self.current_user.preferences.get("theme", "light") == "light" else "#d1d5db",
-        ).pack(side="left", padx=(14, 0))
+        # ---------- Clean color legend ----------
+        legend_frame = tk.Frame(top_row, bg=self.card_color)
+        legend_frame.pack(side="right", padx=(0, 8))
 
-        grid_frame = tk.Frame(parent, bg=self.card_color)
-        grid_frame.pack(fill="both", expand=True)
+        def legend_item(color):
+            item = tk.Frame(legend_frame, bg=self.card_color)
+            item.pack(side="left", padx=8)
 
-        days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-        for col, day in enumerate(days):
-            grid_frame.columnconfigure(col, weight=1, uniform="calendar")
             tk.Label(
-                grid_frame,
-                text=day,
-                font=("Arial", 11, "bold"),
-                bg=self.card_color,
-                fg=self.text_color,
-                anchor="center",
-            ).grid(row=0, column=col, sticky="nsew", padx=3, pady=(0, 4))
+                item,
+                bg=color,
+                width=5,
+                height=2,
+                bd=1,
+                relief="solid"
+            ).pack()
 
+        legend_item(event_bg)
+        legend_item(reminder_bg)
+        legend_item(task_bg)
+
+        # ---------- Data grouped by day ----------
         events_by_day = {}
+        reminders_by_day = {}
+        tasks_by_day = {}
+
         for event in self.current_user.events:
             try:
                 event_date = datetime.strptime(event.get("date", ""), "%m-%d-%y")
@@ -761,30 +937,80 @@ class StudentPlannerGUI:
             if event_date.month == target_month and event_date.year == target_year:
                 events_by_day.setdefault(event_date.day, []).append(event)
 
-        month_weeks = calendar.Calendar(firstweekday=6).monthdayscalendar(target_year, target_month)
-        normal_cell_bg = "#ffffff" if self.current_user.preferences.get("theme", "light") == "light" else "#374151"
-        muted_cell_bg = "#f3f4f6" if self.current_user.preferences.get("theme", "light") == "light" else "#1f2937"
-        event_bg = "#eef4ff" if self.current_user.preferences.get("theme", "light") == "light" else "#111827"
-        event_fg = "#1f2937" if self.current_user.preferences.get("theme", "light") == "light" else "#f9fafb"
+        for reminder in self.current_user.reminders:
+            try:
+                reminder_date = datetime.strptime(reminder.get("date", ""), "%m-%d-%y")
+            except ValueError:
+                continue
 
-        # Always show exactly 6 calendar rows so the full month is visible.
+            if reminder_date.month == target_month and reminder_date.year == target_year:
+                reminders_by_day.setdefault(reminder_date.day, []).append(reminder)
+
+        for task in self.current_user.tasks:
+            task_due_date = getattr(task, "due_date", "")
+
+            if not task_due_date and isinstance(task, dict):
+                task_due_date = task.get("due_date", task.get("date", ""))
+
+            try:
+                task_date = datetime.strptime(task_due_date, "%m-%d-%y")
+            except (ValueError, TypeError):
+                continue
+
+            if task_date.month == target_month and task_date.year == target_year:
+                tasks_by_day.setdefault(task_date.day, []).append(task)
+
+        # ---------- Calendar grid ----------
+        calendar_area = tk.Frame(parent, bg=self.card_color)
+        calendar_area.pack(fill="both", expand=True)
+
+        grid_frame = tk.Frame(calendar_area, bg=self.card_color)
+        grid_frame.pack(side="left", fill="both", expand=True)
+
+        details_card = tk.Frame(calendar_area, bg=self.card_color, bd=1, relief="solid", padx=10, pady=10)
+        details_card.pack(side="right", fill="y", padx=(10, 0))
+        details_card.configure(width=260)
+        details_card.pack_propagate(False)
+
+        days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+        for col, day in enumerate(days):
+            grid_frame.columnconfigure(col, weight=1, uniform="calendar")
+            tk.Label(
+                grid_frame,
+                text=day,
+                font=("Arial", 10, "bold"),
+                bg=self.card_color,
+                fg=self.text_color,
+                anchor="center",
+            ).grid(row=0, column=col, sticky="nsew", padx=3, pady=(0, 2))
+
+        month_weeks = calendar.Calendar(firstweekday=6).monthdayscalendar(target_year, target_month)
+
         while len(month_weeks) < 6:
             month_weeks.append([0, 0, 0, 0, 0, 0, 0])
 
         for row in range(1, 7):
-            grid_frame.rowconfigure(row, weight=1, uniform="calendar_rows", minsize=74)
+            grid_frame.rowconfigure(row, weight=1, uniform="calendar_rows", minsize=78)
 
         for row, week in enumerate(month_weeks[:6], start=1):
             for col, day_num in enumerate(week):
-                cell_bg = muted_cell_bg if day_num == 0 else normal_cell_bg
+                if day_num == 0:
+                    cell_bg = muted_cell_bg
+                elif self.selected_calendar_day == day_num:
+                    cell_bg = selected_bg
+                elif today.day == day_num and today.month == target_month and today.year == target_year:
+                    cell_bg = today_bg
+                else:
+                    cell_bg = normal_cell_bg
 
                 cell = tk.Frame(
                     grid_frame,
                     bg=cell_bg,
-                    bd=1,
+                    bd=2 if (today.day == day_num and today.month == target_month and today.year == target_year) else 1,
                     relief="solid",
-                    padx=5,
-                    pady=4
+                    padx=4,
+                    pady=3
                 )
                 cell.grid(row=row, column=col, sticky="nsew", padx=3, pady=3)
                 cell.grid_propagate(False)
@@ -792,38 +1018,154 @@ class StudentPlannerGUI:
                 if day_num == 0:
                     continue
 
-                tk.Label(
+                day_button = tk.Label(
                     cell,
                     text=str(day_num),
                     font=("Arial", 9, "bold"),
                     bg=cell_bg,
                     fg=self.text_color,
-                ).pack(anchor="nw")
+                    cursor="hand2"
+                )
+                day_button.pack(anchor="nw")
+                day_button.bind("<Button-1>", lambda event, d=day_num: self.select_calendar_day(d))
+                cell.bind("<Button-1>", lambda event, d=day_num: self.select_calendar_day(d))
 
-                day_events = events_by_day.get(day_num, [])
-                for event in day_events[:2]:
-                    event_label = tk.Label(
+                calendar_items = []
+
+                for event in events_by_day.get(day_num, []):
+                    calendar_items.append((
+                        event_bg,
+                        f"Event: {event.get('time', '')}  {event.get('title', '')}"
+                    ))
+
+                for reminder in reminders_by_day.get(day_num, []):
+                    calendar_items.append((
+                        reminder_bg,
+                        f"Reminder: {reminder.get('time', '')}  {reminder.get('title', '')}"
+                    ))
+
+                for task in tasks_by_day.get(day_num, []):
+                    task_title = getattr(task, "title", "")
+
+                    if not task_title and isinstance(task, dict):
+                        task_title = task.get("title", "")
+
+                    calendar_items.append((
+                        task_bg,
+                        f"Task: {task_title}"
+                    ))
+
+                for item_bg, item_text in calendar_items[:4]:
+                    item_label = tk.Label(
                         cell,
-                        text=f"{event.get('time', '')}  {event.get('title', '')}",
+                        text=item_text,
                         font=("Arial", 8),
-                        bg=event_bg,
-                        fg=event_fg,
+                        bg=item_bg,
+                        fg=item_fg,
                         anchor="w",
                         justify="left",
                         wraplength=130,
                         padx=4,
                         pady=1,
                     )
-                    event_label.pack(fill="x", anchor="w", pady=(2, 0))
+                    item_label.pack(fill="x", anchor="w", pady=(1, 0))
+                    item_label.bind("<Button-1>", lambda event, d=day_num: self.select_calendar_day(d))
 
-                if len(day_events) > 2:
-                    tk.Label(
+                if len(calendar_items) > 4:
+                    more_label = tk.Label(
                         cell,
-                        text=f"+ {len(day_events) - 2} more",
+                        text=f"+ {len(calendar_items) - 4} more",
                         font=("Arial", 8, "italic"),
                         bg=cell_bg,
                         fg=self.text_color,
-                    ).pack(anchor="w", pady=(2, 0))
+                    )
+                    more_label.pack(anchor="w", pady=(1, 0))
+                    more_label.bind("<Button-1>", lambda event, d=day_num: self.select_calendar_day(d))
+
+        # ---------- Selected day details ----------
+        if self.selected_calendar_day is None:
+            detail_title = "Select a day"
+            detail_date = "Click a calendar box to view details."
+        else:
+            detail_title = f"{calendar.month_name[target_month]} {self.selected_calendar_day}, {target_year}"
+            detail_date = "Items for selected day:"
+
+        tk.Label(
+            details_card,
+            text=detail_title,
+            font=("Arial", 13, "bold"),
+            bg=self.card_color,
+            fg=self.text_color,
+            wraplength=220,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 4))
+
+        tk.Label(
+            details_card,
+            text=detail_date,
+            font=("Arial", 9),
+            bg=self.card_color,
+            fg=self.get_muted_text_color() if hasattr(self, "get_muted_text_color") else self.text_color,
+            wraplength=220,
+            justify="left"
+        ).pack(anchor="w", pady=(0, 10))
+
+        def add_detail_section(title, items, color, item_formatter):
+            tk.Label(
+                details_card,
+                text=title,
+                font=("Arial", 10, "bold"),
+                bg=self.card_color,
+                fg=self.text_color
+            ).pack(anchor="w", pady=(6, 2))
+
+            if not items:
+                tk.Label(
+                    details_card,
+                    text="None",
+                    font=("Arial", 9, "italic"),
+                    bg=self.card_color,
+                    fg=self.get_muted_text_color() if hasattr(self, "get_muted_text_color") else self.text_color
+                ).pack(anchor="w")
+                return
+
+            for item in items:
+                tk.Label(
+                    details_card,
+                    text=item_formatter(item),
+                    font=("Arial", 9),
+                    bg=color,
+                    fg="white",
+                    anchor="w",
+                    justify="left",
+                    padx=5,
+                    pady=2,
+                    wraplength=220
+                ).pack(fill="x", anchor="w", pady=(2, 0))
+
+        if self.selected_calendar_day is not None:
+            selected_events = events_by_day.get(self.selected_calendar_day, [])
+            selected_reminders = reminders_by_day.get(self.selected_calendar_day, [])
+            selected_tasks = tasks_by_day.get(self.selected_calendar_day, [])
+
+            add_detail_section(
+                "Events",
+                selected_events,
+                event_bg,
+                lambda e: f"{e.get('time', '')}  {e.get('title', '')}"
+            )
+            add_detail_section(
+                "Reminders",
+                selected_reminders,
+                reminder_bg,
+                lambda r: f"{r.get('time', '')}  {r.get('title', '')}"
+            )
+            add_detail_section(
+                "Tasks",
+                selected_tasks,
+                task_bg,
+                lambda t: getattr(t, "title", t.get("title", "") if isinstance(t, dict) else "")
+            )
 
     def add_event(self):
         title = self.event_title_entry.get().strip()
@@ -1071,26 +1413,33 @@ class StudentPlannerGUI:
 
         tk.Label(
             card,
-            text="Customize how the planner looks and displays your information.",
+            text="Customize the planner theme.",
             font=("Arial", 10),
             bg=self.card_color,
-            fg="#4b5563" if self.current_user.preferences.get("theme", "light") == "light" else "#d1d5db",
+            fg=self.get_muted_text_color() if hasattr(self, "get_muted_text_color") else "#4b5563",
         ).pack(anchor="w", pady=(0, 15))
 
         form = tk.Frame(card, bg=self.card_color)
         form.pack(fill="x")
 
-        tk.Label(form, text="Theme", bg=self.card_color, fg=self.text_color, font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w", padx=8, pady=(0, 5))
+        tk.Label(
+            form,
+            text="Theme",
+            bg=self.card_color,
+            fg=self.text_color,
+            font=("Arial", 10, "bold")
+        ).grid(row=0, column=0, sticky="w", padx=8, pady=(0, 5))
+
         self.theme_var = tk.StringVar(value=self.current_user.preferences.get("theme", "light"))
-        ttk.Combobox(form, textvariable=self.theme_var, values=["light", "dark"], state="readonly", width=22).grid(row=1, column=0, padx=8, pady=(0, 14))
 
-        tk.Label(form, text="Layout", bg=self.card_color, fg=self.text_color, font=("Arial", 10, "bold")).grid(row=0, column=1, sticky="w", padx=8, pady=(0, 5))
-        self.layout_var = tk.StringVar(value=self.current_user.preferences.get("layout", "list"))
-        ttk.Combobox(form, textvariable=self.layout_var, values=["list", "calendar"], state="readonly", width=22).grid(row=1, column=1, padx=8, pady=(0, 14))
-
-        tk.Label(form, text="Density", bg=self.card_color, fg=self.text_color, font=("Arial", 10, "bold")).grid(row=0, column=2, sticky="w", padx=8, pady=(0, 5))
-        self.density_var = tk.StringVar(value=self.current_user.preferences.get("density", "normal"))
-        ttk.Combobox(form, textvariable=self.density_var, values=["normal", "compact"], state="readonly", width=22).grid(row=1, column=2, padx=8, pady=(0, 14))
+        ttk.Combobox(
+            form,
+            textvariable=self.theme_var,
+            values=["light", "dark"],
+            state="readonly",
+            width=22,
+            style="Planner.TCombobox"
+        ).grid(row=1, column=0, padx=8, pady=(0, 14))
 
         tk.Button(
             card,
@@ -1102,24 +1451,18 @@ class StudentPlannerGUI:
             command=self.save_preferences,
         ).pack(anchor="w", pady=(4, 12))
 
-        note = (
-            "Theme changes the app colors. Density changes spacing and table row height. "
-            "Layout chooses whether the app opens to Events or Calendar first."
-        )
         tk.Label(
             card,
-            text=note,
+            text="Theme changes the app colors after saving.",
             font=("Arial", 10, "italic"),
             bg=self.card_color,
-            fg="#6b7280" if self.current_user.preferences.get("theme", "light") == "light" else "#d1d5db",
+            fg=self.get_muted_text_color() if hasattr(self, "get_muted_text_color") else "#6b7280",
             wraplength=800,
             justify="left",
         ).pack(anchor="w")
 
     def save_preferences(self):
         self.current_user.preferences["theme"] = self.theme_var.get()
-        self.current_user.preferences["layout"] = self.layout_var.get()
-        self.current_user.preferences["density"] = self.density_var.get()
         self.storage.save_data()
         messagebox.showinfo("Success", "Preferences updated.")
         self.show_dashboard()
@@ -1129,3 +1472,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = StudentPlannerGUI(root)
     root.mainloop()
+
