@@ -18,8 +18,8 @@ class StudentPlannerGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Student Planner GUI")
-        self.root.geometry("1250x900")
-        self.root.minsize(980, 650)
+        self.root.geometry("1450x850")
+        self.root.minsize(1150, 700)
 
         self.storage = StorageManager()
         self.storage.load_data()
@@ -61,8 +61,8 @@ class StudentPlannerGUI:
 
         if theme == "dark":
             field_bg = "#374151"
-            field_fg = "#f9fafb"
-            selected_bg = "#2563eb"
+            field_fg = "#000000"
+            selected_bg = "#93c5fd"
             heading_bg = "#111827"
             heading_fg = "#f9fafb"
             tab_bg = "#1f2937"
@@ -104,7 +104,7 @@ class StudentPlannerGUI:
         style.map(
             "Planner.Treeview",
             background=[("selected", selected_bg)],
-            foreground=[("selected", "#ffffff" if theme == "dark" else "#1f2937")]
+            foreground=[("selected", "#000000")]
         )
         style.configure(
             "Planner.Treeview.Heading",
@@ -121,6 +121,7 @@ class StudentPlannerGUI:
             foreground=field_fg,
             arrowcolor=field_fg
         )
+
     def apply_theme(self):
         """Apply light or dark colors based on the logged-in user's preference."""
         if self.current_user is None:
@@ -138,6 +139,7 @@ class StudentPlannerGUI:
             self.card_color = "#ffffff"
             self.accent_color = "#2f6fed"
             self.text_color = "#1f2937"
+
         self.pad_x = 8
         self.pad_y = 10
         self.card_pad = 14
@@ -147,29 +149,6 @@ class StudentPlannerGUI:
         self.root.configure(bg=self.bg_color)
         self.main_frame.configure(bg=self.bg_color)
         self.setup_styles()
-
-    def apply_density(self):
-        """Apply normal or compact spacing based on user preference."""
-        if self.current_user is None:
-            return
-
-        density = self.current_user.preferences.get("density", "normal")
-
-        if density == "compact":
-            self.pad_x = 4
-            self.pad_y = 4
-            self.card_pad = 10
-            self.tree_rowheight = 22
-            self.tab_padding = (12, 5)
-        else:
-            self.pad_x = 8
-            self.pad_y = 10
-            self.card_pad = 14
-            self.tree_rowheight = 28
-            self.tab_padding = (16, 8)
-
-        self.setup_styles()
-
 
     def get_muted_text_color(self):
         """Return secondary text color for the active theme."""
@@ -185,7 +164,7 @@ class StudentPlannerGUI:
             entry.configure(bg="#ffffff", fg="#1f2937", insertbackground="#1f2937")
 
     def style_all_widgets(self, parent):
-        """Recursively apply dark/light colors to Tk widgets inside a screen."""
+        """Recursively apply dark/light colors to regular Tk widgets only."""
         theme = "light"
         if self.current_user is not None:
             theme = self.current_user.preferences.get("theme", "light")
@@ -194,37 +173,62 @@ class StudentPlannerGUI:
         entry_bg = "#374151" if theme == "dark" else "#ffffff"
         entry_fg = "#f9fafb" if theme == "dark" else "#1f2937"
 
-        for widget in parent.winfo_children():
+        try:
+            children = parent.winfo_children()
+        except tk.TclError:
+            return
+
+        for widget in children:
             if isinstance(widget, tk.Frame):
-                current_bg = widget.cget("bg")
-                if current_bg in ("#f4f7fb", "#111827"):
-                    widget.configure(bg=self.bg_color)
-                else:
-                    widget.configure(bg=self.card_color)
-                self.style_all_widgets(widget)
+                try:
+                    current_bg = widget.cget("bg")
+                    if current_bg in ("#f4f7fb", "#111827"):
+                        widget.configure(bg=self.bg_color)
+                    else:
+                        widget.configure(bg=self.card_color)
+                except tk.TclError:
+                    pass
 
             elif isinstance(widget, tk.Label):
-                current_text = widget.cget("text")
-                current_bg = widget.cget("bg")
+                try:
+                    current_text = widget.cget("text")
+                    current_bg = widget.cget("bg")
 
-                if current_bg in ("#f4f7fb", "#111827"):
-                    widget.configure(bg=self.bg_color)
-                else:
-                    widget.configure(bg=self.card_color)
+                    # Do not overwrite the colored calendar labels or legend colors.
+                    calendar_colors = ("#3b82f6", "#f59e0b", "#10b981")
+                    if current_bg in calendar_colors:
+                        pass
+                    else:
+                        if current_bg in ("#f4f7fb", "#111827"):
+                            widget.configure(bg=self.bg_color)
+                        else:
+                            widget.configure(bg=self.card_color)
 
-                if current_text and ("Customize" in current_text or "Theme changes" in current_text or "Username format" in current_text or "Log in" in current_text):
-                    widget.configure(fg=muted)
-                else:
-                    widget.configure(fg=self.text_color)
+                        if current_text and (
+                            "Customize" in current_text
+                            or "Theme changes" in current_text
+                            or "Username format" in current_text
+                            or "Log in" in current_text
+                        ):
+                            widget.configure(fg=muted)
+                        else:
+                            widget.configure(fg=self.text_color)
+                except tk.TclError:
+                    pass
 
             elif isinstance(widget, tk.Entry):
-                widget.configure(bg=entry_bg, fg=entry_fg, insertbackground=entry_fg)
+                try:
+                    widget.configure(bg=entry_bg, fg=entry_fg, insertbackground=entry_fg)
+                except tk.TclError:
+                    pass
 
             elif isinstance(widget, tk.Listbox):
-                widget.configure(bg=entry_bg, fg=entry_fg)
+                try:
+                    widget.configure(bg=entry_bg, fg=entry_fg)
+                except tk.TclError:
+                    pass
 
             elif isinstance(widget, tk.Button):
-                # Keep accent buttons readable; normal buttons use default-ish colors.
                 try:
                     if widget.cget("bg") in ("#2f6fed", "#2563eb"):
                         widget.configure(bg=self.accent_color, fg="white")
@@ -361,8 +365,8 @@ class StudentPlannerGUI:
 
         first, last, student_id = parts
 
-        if not re.fullmatch(r"\d{7}", student_id):
-            messagebox.showerror("Invalid Student ID", "Student ID must be exactly 7 digits.")
+        if not re.fullmatch(r"\d{7,8}", student_id):
+            messagebox.showerror("Invalid Student ID", "Student ID must be exactly 7-8 digits.")
             return
 
         if not first[0].isupper() or not last[0].isupper():
@@ -381,13 +385,69 @@ class StudentPlannerGUI:
             messagebox.showerror("Password Error", "Password must be at least 8 characters and contain letters and numbers.")
             return
 
-        q1 = simpledialog.askstring("Security Question 1", "What is your favorite color?")
-        q2 = simpledialog.askstring("Security Question 2", "What city were you born in?")
-        q3 = simpledialog.askstring("Security Question 3", "What is your pet's name?")
+        security_popup = tk.Toplevel(self.root)
+        security_popup.title("Security Questions")
+        security_popup.geometry("400x300")
+        security_popup.configure(bg=self.card_color)
+        security_popup.grab_set()
 
-        if not q1 or not q2 or not q3:
-            messagebox.showerror("Error", "All security questions must be answered.")
+        tk.Label(
+            security_popup,
+            text="Answer Security Questions",
+            font=("Arial", 14, "bold"),
+            bg=self.card_color,
+            fg=self.text_color
+        ).pack(pady=(15, 10))
+
+        tk.Label(security_popup, text="What is your favorite color?", bg=self.card_color, fg=self.text_color).pack(
+            anchor="w", padx=25)
+        q1_entry = tk.Entry(security_popup, width=35)
+        q1_entry.pack(pady=(0, 10))
+
+        tk.Label(security_popup, text="What city were you born in?", bg=self.card_color, fg=self.text_color).pack(
+            anchor="w", padx=25)
+        q2_entry = tk.Entry(security_popup, width=35)
+        q2_entry.pack(pady=(0, 10))
+
+        tk.Label(security_popup, text="What is your pet's name?", bg=self.card_color, fg=self.text_color).pack(
+            anchor="w", padx=25)
+        q3_entry = tk.Entry(security_popup, width=35)
+        q3_entry.pack(pady=(0, 15))
+
+        answers = {}
+
+        def save_security_answers():
+            q1 = q1_entry.get().strip()
+            q2 = q2_entry.get().strip()
+            q3 = q3_entry.get().strip()
+
+            if not q1 or not q2 or not q3:
+                messagebox.showerror("Error", "All security questions must be answered.")
+                return
+
+            answers["q1"] = q1.lower()
+            answers["q2"] = q2.lower()
+            answers["q3"] = q3.lower()
+            security_popup.destroy()
+
+        tk.Button(
+            security_popup,
+            text="Save Answers",
+            bg=self.accent_color,
+            fg="white",
+            width=15,
+            command=save_security_answers
+        ).pack()
+
+        self.style_all_widgets(security_popup)
+        self.root.wait_window(security_popup)
+
+        if not answers:
             return
+
+        q1 = answers["q1"]
+        q2 = answers["q2"]
+        q3 = answers["q3"]
 
         user = User(first_name=first, last_name=last, student_id=student_id, password_hash=hash_password(password), security_answers=[q1.lower(), q2.lower(), q3.lower()])
         self.storage.users[student_id] = user
@@ -408,12 +468,25 @@ class StudentPlannerGUI:
         card = self.make_card(wrapper)
         card.pack(padx=10, pady=10)
 
-        tk.Label(card, text="Reset Password", font=("Arial", 20, "bold"), bg=self.card_color, fg=self.text_color).pack(pady=(0, 10))
-        tk.Label(card, text="Enter Student ID:", bg=self.card_color, fg=self.text_color).pack()
+        tk.Label(
+            card,
+            text="Reset Password",
+            font=("Arial", 20, "bold"),
+            bg=self.card_color,
+            fg=self.text_color
+        ).pack(pady=(0, 10))
+
+        tk.Label(
+            card,
+            text="Enter Student ID:",
+            bg=self.card_color,
+            fg=self.text_color
+        ).pack()
+
         id_entry = tk.Entry(card, width=30)
         id_entry.pack(pady=5)
 
-        def next_step():
+        def open_security_popup():
             sid = id_entry.get().strip()
 
             if sid not in self.storage.users:
@@ -421,33 +494,114 @@ class StudentPlannerGUI:
                 return
 
             user = self.storage.users[sid]
-            questions = ["What is your favorite color?", "What city were you born in?", "What is your pet's name?"]
 
-            for i, q in enumerate(questions):
-                ans = simpledialog.askstring("Security Question", q)
-                if not ans or ans.lower() != user.security_answers[i]:
+            popup = tk.Toplevel(self.root)
+            popup.title("Security Questions")
+            popup.geometry("430x420")
+            popup.configure(bg=self.card_color)
+            popup.grab_set()
+
+            tk.Label(
+                popup,
+                text="Answer Security Questions",
+                font=("Arial", 14, "bold"),
+                bg=self.card_color,
+                fg=self.text_color
+            ).pack(pady=(15, 10))
+
+            tk.Label(popup, text="What is your favorite color?", bg=self.card_color, fg=self.text_color).pack(
+                anchor="w", padx=25)
+            q1_entry = tk.Entry(popup, width=35)
+            q1_entry.pack(pady=(0, 10))
+
+            tk.Label(popup, text="What city were you born in?", bg=self.card_color, fg=self.text_color).pack(anchor="w",
+                                                                                                             padx=25)
+            q2_entry = tk.Entry(popup, width=35)
+            q2_entry.pack(pady=(0, 10))
+
+            tk.Label(popup, text="What is your pet's name?", bg=self.card_color, fg=self.text_color).pack(anchor="w",
+                                                                                                          padx=25)
+            q3_entry = tk.Entry(popup, width=35)
+            q3_entry.pack(pady=(0, 15))
+
+            tk.Label(popup, text="New Password", bg=self.card_color, fg=self.text_color).pack(anchor="w", padx=25)
+            new_pw_entry = tk.Entry(popup, width=35, show="*")
+            new_pw_entry.pack(pady=(0, 10))
+
+            tk.Label(popup, text="Confirm New Password", bg=self.card_color, fg=self.text_color).pack(anchor="w",
+                                                                                                      padx=25)
+            confirm_pw_entry = tk.Entry(popup, width=35, show="*")
+            confirm_pw_entry.pack(pady=(0, 15))
+
+            def reset_password():
+                q1 = q1_entry.get().strip().lower()
+                q2 = q2_entry.get().strip().lower()
+                q3 = q3_entry.get().strip().lower()
+                new_pw = new_pw_entry.get().strip()
+                confirm_pw = confirm_pw_entry.get().strip()
+
+                if not q1 or not q2 or not q3:
+                    messagebox.showerror("Error", "All security questions must be answered.")
+                    return
+
+                if q1 != user.security_answers[0] or q2 != user.security_answers[1] or q3 != user.security_answers[2]:
                     messagebox.showerror("Error", "Security answers do not match.")
                     return
 
-            new_pw = simpledialog.askstring("New Password", "Enter new password:", show="*")
-            confirm_pw = simpledialog.askstring("Confirm Password", "Confirm new password:", show="*")
+                if new_pw != confirm_pw:
+                    messagebox.showerror("Password Error", "Passwords do not match.")
+                    return
 
-            if new_pw != confirm_pw:
-                messagebox.showerror("Error", "Passwords do not match.")
-                return
+                if len(new_pw) < 8 or not re.search(r"[A-Za-z]", new_pw) or not re.search(r"[0-9]", new_pw):
+                    messagebox.showerror(
+                        "Password Error",
+                        "Password must be at least 8 characters and contain letters and numbers."
+                    )
+                    return
 
-            if len(new_pw) < 8 or not re.search(r"[A-Za-z]", new_pw) or not re.search(r"[0-9]", new_pw):
-                messagebox.showerror("Password Error", "Password must be at least 8 characters and contain letters and numbers.")
-                return
+                user.password_hash = hash_password(new_pw)
+                self.storage.login_attempts[sid] = 0
+                self.storage.save_data()
 
-            user.password_hash = hash_password(new_pw)
-            self.storage.login_attempts[sid] = 0
-            self.storage.save_data()
-            messagebox.showinfo("Success", "Password reset successfully.")
-            self.show_login_screen()
+                messagebox.showinfo("Success", "Password reset successfully.")
+                popup.destroy()
+                self.show_login_screen()
 
-        tk.Button(card, text="Next", command=next_step).pack(pady=10)
-        tk.Button(card, text="Back", command=self.show_login_screen).pack()
+            tk.Button(
+                popup,
+                text="Reset Password",
+                bg=self.accent_color,
+                fg="white",
+                width=18,
+                command=reset_password
+            ).pack(pady=(0, 10))
+
+            tk.Button(
+                popup,
+                text="Cancel",
+                width=18,
+                command=popup.destroy
+            ).pack()
+
+            self.style_all_widgets(popup)
+
+        tk.Button(
+            card,
+            text="Next",
+            bg=self.accent_color,
+            fg="white",
+            width=14,
+            command=open_security_popup
+        ).pack(pady=10)
+
+        tk.Button(
+            card,
+            text="Back",
+            width=14,
+            command=self.show_login_screen
+        ).pack()
+
+        self.style_all_widgets(self.main_frame)
 
     def show_dashboard(self):
         self.clear_main_frame()
@@ -492,7 +646,6 @@ class StudentPlannerGUI:
         self.build_preferences_tab()
 
         self.style_all_widgets(self.main_frame)
-
 
     def logout(self):
         self.storage.current_user = None
@@ -604,6 +757,7 @@ class StudentPlannerGUI:
         self.storage.save_data()
         self.clear_task_form()
         self.refresh_tasks_tree()
+        self.refresh_calendar_if_ready()
         messagebox.showinfo("Success", "Task added successfully.")
 
     def clear_task_form(self):
@@ -664,6 +818,7 @@ class StudentPlannerGUI:
         task.color = color
         self.storage.save_data()
         self.refresh_tasks_tree()
+        self.refresh_calendar_if_ready()
         messagebox.showinfo("Success", "Task updated successfully.")
 
     def mark_selected_task_done(self):
@@ -680,6 +835,7 @@ class StudentPlannerGUI:
         task.mark_done()
         self.storage.save_data()
         self.refresh_tasks_tree()
+        self.refresh_calendar_if_ready()
         messagebox.showinfo("Success", "Task marked as done.")
 
     def delete_selected_task(self):
@@ -697,6 +853,7 @@ class StudentPlannerGUI:
         self.storage.save_data()
         self.clear_task_form()
         self.refresh_tasks_tree()
+        self.refresh_calendar_if_ready()
 
     def delete_completed_tasks(self):
         completed_count = len([task for task in self.current_user.tasks if task.is_done])
@@ -712,6 +869,7 @@ class StudentPlannerGUI:
         self.storage.save_data()
         self.clear_task_form()
         self.refresh_tasks_tree()
+        self.refresh_calendar_if_ready()
 
     def sort_tasks(self, mode):
         if mode == "due":
@@ -749,7 +907,7 @@ class StudentPlannerGUI:
             "gray": "#e5e7eb",
         }
         for color_name, shade in color_map.items():
-            self.tasks_tree.tag_configure(color_name, background=shade)
+            self.tasks_tree.tag_configure(color_name, background=shade, foreground="#000000")
 
         if task_rows is None:
             task_rows = list(enumerate(self.current_user.tasks))
@@ -815,7 +973,7 @@ class StudentPlannerGUI:
         self.refresh_events_list()
 
     def build_calendar_tab(self):
-        self.calendar_card = tk.Frame(self.calendar_tab, bg=self.card_color, bd=1, relief="solid", padx=10, pady=8)
+        self.calendar_card = tk.Frame(self.calendar_tab, bg=self.card_color, bd=1, relief="solid", padx=6, pady=4)
         self.calendar_card.pack(fill="both", expand=True)
 
         today = datetime.today()
@@ -850,10 +1008,22 @@ class StudentPlannerGUI:
         self.selected_calendar_day = day_num
         self.build_calendar_grid(self.calendar_card)
 
+    def refresh_calendar_if_ready(self):
+        """Refresh calendar safely only when the calendar frame still exists."""
+        if hasattr(self, "calendar_card"):
+            try:
+                if self.calendar_card.winfo_exists():
+                    self.build_calendar_grid(self.calendar_card)
+            except tk.TclError:
+                pass
+
     def build_calendar_grid(self, parent):
         """Show tasks, events, and reminders in a readable calendar grid."""
-        for widget in parent.winfo_children():
-            widget.destroy()
+        try:
+            for widget in parent.winfo_children():
+                widget.destroy()
+        except tk.TclError:
+            return
 
         today = datetime.today()
 
@@ -875,9 +1045,8 @@ class StudentPlannerGUI:
         task_bg = "#10b981"
         item_fg = "white"
 
-        # ---------- Top navigation ----------
         top_row = tk.Frame(parent, bg=self.card_color)
-        top_row.pack(fill="x", pady=(0, 6))
+        top_row.pack(fill="x", pady=(0, 2))
 
         tk.Button(
             top_row,
@@ -890,7 +1059,7 @@ class StudentPlannerGUI:
         tk.Label(
             top_row,
             text=month_title,
-            font=("Arial", 17, "bold"),
+            font=("Arial", 16, "bold"),
             bg=self.card_color,
             fg=self.text_color,
         ).pack(side="left", padx=18)
@@ -902,28 +1071,34 @@ class StudentPlannerGUI:
             command=lambda: self.shift_calendar_month(1)
         ).pack(side="left")
 
-        # ---------- Clean color legend ----------
         legend_frame = tk.Frame(top_row, bg=self.card_color)
         legend_frame.pack(side="right", padx=(0, 8))
 
-        def legend_item(color):
+        def legend_item(color, label):
             item = tk.Frame(legend_frame, bg=self.card_color)
             item.pack(side="left", padx=8)
 
             tk.Label(
                 item,
                 bg=color,
-                width=5,
-                height=2,
+                width=3,
+                height=1,
                 bd=1,
                 relief="solid"
-            ).pack()
+            ).pack(side="left", padx=(0, 4))
 
-        legend_item(event_bg)
-        legend_item(reminder_bg)
-        legend_item(task_bg)
+            tk.Label(
+                item,
+                text=label,
+                font=("Arial", 7, "bold"),
+                bg=self.card_color,
+                fg=self.text_color
+            ).pack(side="left")
 
-        # ---------- Data grouped by day ----------
+        legend_item(event_bg, "Events")
+        legend_item(reminder_bg, "Reminders")
+        legend_item(task_bg, "Tasks")
+
         events_by_day = {}
         reminders_by_day = {}
         tasks_by_day = {}
@@ -960,7 +1135,6 @@ class StudentPlannerGUI:
             if task_date.month == target_month and task_date.year == target_year:
                 tasks_by_day.setdefault(task_date.day, []).append(task)
 
-        # ---------- Calendar grid ----------
         calendar_area = tk.Frame(parent, bg=self.card_color)
         calendar_area.pack(fill="both", expand=True)
 
@@ -968,8 +1142,8 @@ class StudentPlannerGUI:
         grid_frame.pack(side="left", fill="both", expand=True)
 
         details_card = tk.Frame(calendar_area, bg=self.card_color, bd=1, relief="solid", padx=10, pady=10)
-        details_card.pack(side="right", fill="y", padx=(10, 0))
-        details_card.configure(width=260)
+        details_card.pack(side="right", fill="y", padx=(12, 0))
+        details_card.configure(width=300)
         details_card.pack_propagate(False)
 
         days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -979,21 +1153,18 @@ class StudentPlannerGUI:
             tk.Label(
                 grid_frame,
                 text=day,
-                font=("Arial", 10, "bold"),
+                font=("Arial", 7, "bold"),
                 bg=self.card_color,
                 fg=self.text_color,
                 anchor="center",
-            ).grid(row=0, column=col, sticky="nsew", padx=3, pady=(0, 2))
+            ).grid(row=0, column=col, sticky="nsew", padx=2, pady=(0, 1))
 
         month_weeks = calendar.Calendar(firstweekday=6).monthdayscalendar(target_year, target_month)
 
-        while len(month_weeks) < 6:
-            month_weeks.append([0, 0, 0, 0, 0, 0, 0])
+        for row in range(1, len(month_weeks) + 1):
+            grid_frame.rowconfigure(row, weight=1)
 
-        for row in range(1, 7):
-            grid_frame.rowconfigure(row, weight=1, uniform="calendar_rows", minsize=78)
-
-        for row, week in enumerate(month_weeks[:6], start=1):
+        for row, week in enumerate(month_weeks, start=1):
             for col, day_num in enumerate(week):
                 if day_num == 0:
                     cell_bg = muted_cell_bg
@@ -1010,9 +1181,9 @@ class StudentPlannerGUI:
                     bd=2 if (today.day == day_num and today.month == target_month and today.year == target_year) else 1,
                     relief="solid",
                     padx=4,
-                    pady=3
+                    pady=2
                 )
-                cell.grid(row=row, column=col, sticky="nsew", padx=3, pady=3)
+                cell.grid(row=row, column=col, sticky="nsew", padx=2, pady=2)
                 cell.grid_propagate(False)
 
                 if day_num == 0:
@@ -1021,7 +1192,7 @@ class StudentPlannerGUI:
                 day_button = tk.Label(
                     cell,
                     text=str(day_num),
-                    font=("Arial", 9, "bold"),
+                    font=("Arial", 7, "bold"),
                     bg=cell_bg,
                     fg=self.text_color,
                     cursor="hand2"
@@ -1035,13 +1206,13 @@ class StudentPlannerGUI:
                 for event in events_by_day.get(day_num, []):
                     calendar_items.append((
                         event_bg,
-                        f"Event: {event.get('time', '')}  {event.get('title', '')}"
+                        f"{event.get('time', '')}  {event.get('title', '')}"
                     ))
 
                 for reminder in reminders_by_day.get(day_num, []):
                     calendar_items.append((
                         reminder_bg,
-                        f"Reminder: {reminder.get('time', '')}  {reminder.get('title', '')}"
+                        f"{reminder.get('time', '')}  {reminder.get('title', '')}"
                     ))
 
                 for task in tasks_by_day.get(day_num, []):
@@ -1052,40 +1223,46 @@ class StudentPlannerGUI:
 
                     calendar_items.append((
                         task_bg,
-                        f"Task: {task_title}"
+                        f"{task_title}"
                     ))
 
-                for item_bg, item_text in calendar_items[:4]:
-                    item_label = tk.Label(
-                        cell,
-                        text=item_text,
-                        font=("Arial", 8),
-                        bg=item_bg,
-                        fg=item_fg,
-                        anchor="w",
-                        justify="left",
-                        wraplength=130,
-                        padx=4,
-                        pady=1,
-                    )
-                    item_label.pack(fill="x", anchor="w", pady=(1, 0))
-                    item_label.bind("<Button-1>", lambda event, d=day_num: self.select_calendar_day(d))
+                # Dot-style calendar display: dots show item types without crowding the box.
+                if calendar_items:
+                    dot_row = tk.Frame(cell, bg=cell_bg)
+                    dot_row.pack(anchor="center", pady=(2, 0))
 
-                if len(calendar_items) > 4:
-                    more_label = tk.Label(
-                        cell,
-                        text=f"+ {len(calendar_items) - 4} more",
-                        font=("Arial", 8, "italic"),
-                        bg=cell_bg,
-                        fg=self.text_color,
-                    )
-                    more_label.pack(anchor="w", pady=(1, 0))
-                    more_label.bind("<Button-1>", lambda event, d=day_num: self.select_calendar_day(d))
+                    for item_bg, item_text in calendar_items[:10]:
+                        dot = tk.Canvas(
+                            dot_row,
+                            width=7,
+                            height=7,
+                            bg=cell_bg,
+                            highlightthickness=0,
+                            bd=0,
+                            cursor="hand2"
+                        )
+                        dot.create_oval(1, 1, 6, 6, fill=item_bg, outline=item_bg)
+                        dot.pack(side="left", padx=1)
+                        dot.bind("<Button-1>", lambda event, d=day_num: self.select_calendar_day(d))
 
-        # ---------- Selected day details ----------
+                    if len(calendar_items) > 10:
+                        more_dots = tk.Label(
+                            dot_row,
+                            text=f"+{len(calendar_items) - 10}",
+                            font=("Arial", 6, "bold"),
+                            bg=cell_bg,
+                            fg=self.text_color,
+                            cursor="hand2"
+                        )
+                        more_dots.pack(side="left", padx=(3, 0))
+                        more_dots.bind(
+                            "<Button-1>",
+                            lambda event, d=day_num, items=list(calendar_items): self.show_day_items_popup(d, items)
+                        )
+
         if self.selected_calendar_day is None:
             detail_title = "Select a day"
-            detail_date = "Click a calendar box to view details."
+            detail_date = "Click a calendar box to view the full details for that day."
         else:
             detail_title = f"{calendar.month_name[target_month]} {self.selected_calendar_day}, {target_year}"
             detail_date = "Items for selected day:"
@@ -1096,7 +1273,7 @@ class StudentPlannerGUI:
             font=("Arial", 13, "bold"),
             bg=self.card_color,
             fg=self.text_color,
-            wraplength=220,
+            wraplength=270,
             justify="left"
         ).pack(anchor="w", pady=(0, 4))
 
@@ -1105,8 +1282,8 @@ class StudentPlannerGUI:
             text=detail_date,
             font=("Arial", 9),
             bg=self.card_color,
-            fg=self.get_muted_text_color() if hasattr(self, "get_muted_text_color") else self.text_color,
-            wraplength=220,
+            fg=self.get_muted_text_color(),
+            wraplength=270,
             justify="left"
         ).pack(anchor="w", pady=(0, 10))
 
@@ -1125,7 +1302,7 @@ class StudentPlannerGUI:
                     text="None",
                     font=("Arial", 9, "italic"),
                     bg=self.card_color,
-                    fg=self.get_muted_text_color() if hasattr(self, "get_muted_text_color") else self.text_color
+                    fg=self.get_muted_text_color()
                 ).pack(anchor="w")
                 return
 
@@ -1140,7 +1317,7 @@ class StudentPlannerGUI:
                     justify="left",
                     padx=5,
                     pady=2,
-                    wraplength=220
+                    wraplength=270
                 ).pack(fill="x", anchor="w", pady=(2, 0))
 
         if self.selected_calendar_day is not None:
@@ -1166,6 +1343,82 @@ class StudentPlannerGUI:
                 task_bg,
                 lambda t: getattr(t, "title", t.get("title", "") if isinstance(t, dict) else "")
             )
+
+    def show_day_items_popup(self, day_num, calendar_items):
+        """Open a small scrollable popup showing all items for a day."""
+        popup = tk.Toplevel(self.root)
+        popup.title("Day Details")
+        popup.geometry("460x380")
+        popup.configure(bg=self.card_color)
+
+        title_text = f"{calendar.month_name[self.calendar_month]} {day_num}, {self.calendar_year}"
+        tk.Label(
+            popup,
+            text=title_text,
+            font=("Arial", 14, "bold"),
+            bg=self.card_color,
+            fg=self.text_color
+        ).pack(anchor="w", padx=12, pady=(12, 6))
+
+        container = tk.Frame(popup, bg=self.card_color)
+        container.pack(fill="both", expand=True, padx=12, pady=(0, 12))
+
+        canvas = tk.Canvas(container, bg=self.card_color, highlightthickness=0)
+        canvas.pack(side="left", fill="both", expand=True)
+
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scrollbar.pack(side="right", fill="y")
+
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        inner = tk.Frame(canvas, bg=self.card_color)
+        window = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def update_scroll(event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            canvas.itemconfig(window, width=canvas.winfo_width())
+
+        inner.bind("<Configure>", update_scroll)
+        canvas.bind("<Configure>", update_scroll)
+
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            return "break"
+
+        canvas.bind("<MouseWheel>", on_mousewheel)
+        inner.bind("<MouseWheel>", on_mousewheel)
+
+        if not calendar_items:
+            tk.Label(
+                inner,
+                text="No items for this day.",
+                font=("Arial", 10, "italic"),
+                bg=self.card_color,
+                fg=self.get_muted_text_color()
+            ).pack(anchor="w", pady=8)
+        else:
+            for item_bg, item_text in calendar_items:
+                item = tk.Label(
+                    inner,
+                    text=item_text,
+                    font=("Arial", 10),
+                    bg=item_bg,
+                    fg="white",
+                    anchor="w",
+                    justify="left",
+                    padx=8,
+                    pady=5,
+                    wraplength=270
+                )
+                item.pack(fill="x", anchor="w", pady=4)
+                item.bind("<MouseWheel>", on_mousewheel)
+
+        tk.Button(
+            popup,
+            text="Close",
+            width=12,
+            command=popup.destroy
+        ).pack(pady=(0, 12))
 
     def add_event(self):
         title = self.event_title_entry.get().strip()
@@ -1199,24 +1452,27 @@ class StudentPlannerGUI:
 
     def refresh_events_list(self):
         if hasattr(self, "events_tree"):
-            for item in self.events_tree.get_children():
-                self.events_tree.delete(item)
+            try:
+                if self.events_tree.winfo_exists():
+                    for item in self.events_tree.get_children():
+                        self.events_tree.delete(item)
 
-            for index, event in enumerate(self.current_user.events):
-                self.events_tree.insert(
-                    "",
-                    "end",
-                    iid=str(index),
-                    values=(
-                        event.get("title", ""),
-                        event.get("date", ""),
-                        event.get("time", ""),
-                        event.get("location", ""),
-                    ),
-                )
+                    for index, event in enumerate(self.current_user.events):
+                        self.events_tree.insert(
+                            "",
+                            "end",
+                            iid=str(index),
+                            values=(
+                                event.get("title", ""),
+                                event.get("date", ""),
+                                event.get("time", ""),
+                                event.get("location", ""),
+                            ),
+                        )
+            except tk.TclError:
+                pass
 
-        if hasattr(self, "calendar_card"):
-            self.build_calendar_grid(self.calendar_card)
+        self.refresh_calendar_if_ready()
 
     def delete_selected_event(self):
         selected = self.events_tree.selection()
@@ -1287,6 +1543,7 @@ class StudentPlannerGUI:
             popup.destroy()
 
         tk.Button(popup, text="Save Changes", bg=self.accent_color, fg="white", width=14, command=save_changes).pack(pady=10)
+        self.style_all_widgets(popup)
 
     def build_reminders_tab(self):
         form_card = self.make_card(self.reminders_tab, "Create Reminder")
@@ -1362,14 +1619,24 @@ class StudentPlannerGUI:
         self.reminder_time_entry.delete(0, tk.END)
         self.reminder_ampm_var.set("AM")
         self.refresh_reminders_list()
+        self.refresh_calendar_if_ready()
 
     def refresh_reminders_list(self):
-        for item in self.reminders_tree.get_children():
-            self.reminders_tree.delete(item)
+        if not hasattr(self, "reminders_tree"):
+            return
 
-        for index, reminder in enumerate(self.current_user.reminders):
-            status = "Active" if reminder.get("notify", True) else "Notified"
-            self.reminders_tree.insert("", "end", iid=str(index), values=(reminder.get("title", ""), reminder.get("date", ""), reminder.get("time", ""), status))
+        try:
+            if not self.reminders_tree.winfo_exists():
+                return
+
+            for item in self.reminders_tree.get_children():
+                self.reminders_tree.delete(item)
+
+            for index, reminder in enumerate(self.current_user.reminders):
+                status = "Active" if reminder.get("notify", True) else "Notified"
+                self.reminders_tree.insert("", "end", iid=str(index), values=(reminder.get("title", ""), reminder.get("date", ""), reminder.get("time", ""), status))
+        except tk.TclError:
+            pass
 
     def delete_selected_reminder(self):
         selected = self.reminders_tree.selection()
@@ -1381,6 +1648,7 @@ class StudentPlannerGUI:
         del self.current_user.reminders[index]
         self.storage.save_data()
         self.refresh_reminders_list()
+        self.refresh_calendar_if_ready()
 
     def check_reminders(self):
         if self.current_user is not None:
@@ -1398,6 +1666,15 @@ class StudentPlannerGUI:
                     continue
 
                 if now >= reminder_datetime:
+                    # Bring app to front even if minimized
+                    try:
+                        self.root.deiconify()  # restore if minimized
+                        self.root.lift()  # bring to front
+                        self.root.attributes("-topmost", True)
+                        self.root.after(1000, lambda: self.root.attributes("-topmost", False))
+                    except:
+                        pass
+
                     messagebox.showinfo("Reminder", f"Reminder: {reminder.get('title', '')}")
                     reminder["notify"] = False
                     self.storage.save_data()
@@ -1416,7 +1693,7 @@ class StudentPlannerGUI:
             text="Customize the planner theme.",
             font=("Arial", 10),
             bg=self.card_color,
-            fg=self.get_muted_text_color() if hasattr(self, "get_muted_text_color") else "#4b5563",
+            fg=self.get_muted_text_color(),
         ).pack(anchor="w", pady=(0, 15))
 
         form = tk.Frame(card, bg=self.card_color)
@@ -1456,8 +1733,8 @@ class StudentPlannerGUI:
             text="Theme changes the app colors after saving.",
             font=("Arial", 10, "italic"),
             bg=self.card_color,
-            fg=self.get_muted_text_color() if hasattr(self, "get_muted_text_color") else "#6b7280",
-            wraplength=800,
+            fg=self.get_muted_text_color(),
+            wraplength=270,
             justify="left",
         ).pack(anchor="w")
 
@@ -1472,4 +1749,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = StudentPlannerGUI(root)
     root.mainloop()
-
